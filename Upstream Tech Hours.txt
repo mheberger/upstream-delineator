@@ -1,0 +1,23 @@
+Upstream Tech Hours
+
+12-15 hours to return sub-basins
+and to split catchments at multiple points
+
+12 -24 hours to use larger catchments and to
+provide a network topology diagram and the subbasin outlets.
+
+
+Thu 4/18 1.0 Client meeting
+Fri 4/19 0.25 Client emails
+Sun 4/21 3.0 Began refactoring code to return undissolved unit catchments; began formulating solution to merging unit catchments to create larger subbasins;
+Sun 4/21 1.0 Working on a solution to the merging problem.
+Mon 4/22 2.0 Continued work on the merging problem
+Tue 4/23 2.0 Noodling on the merging problem.
+Wed 4/24 3.0 Noodling on the merging problem. Almost there. 
+Thu 4/25 4.0 Continued work on the merging problem!
+Sat 4/26 3.0 Fixed problem with datasets by redoing the simplification using mapshaper standalone
+Mon 4/28 6.0 Continued work on merging. Using NetworkX and new algorithms for merging and updating stream order.
+Tue 4/29 2.0 Continued merging. I think I have a very good algorithm at this point. 
+Sat 5/04 2.0 Redoing the merging algorithm step 4, was buggy
+Mon 5/06 5.0 Merging algorithm
+Tue 5/07 1.0 Reorganizing and refactoring code.
