@@ -1,113 +1,203 @@
 """
-Step #2
+Step #2:
 
-Testing whether I can create HUC-like basin boundaries with simple decision rules in GeoPandas
-The simple rule is, if sorder=1, merge the unit catchment with its downstream neighbor.
-Practically, the way to do this is to assign each unit catchment the field `mergeid` then do a dissolve.
+Merge the small "serial nodes."
+These are unit catchments that have only one upstream neighbor.
+They are often rather small, and they are not handled in the previous step.
 
-Updated so that if the unit catchment's area is in the 98th percentile or up, we do not merge it.
-This helps keep the distribution of catchment areas slightly more homogeneous.
+The rule for finding candidates for merging is:
+
+IF
+    node has
+    shreve > 1
+    AND numup = 1
+    AND area < threshold
+
+We consider mergin the node with its UPSTREAM neighbor.
+
+This means
+    delete the upstream node
+    merge the upstream node's geometry with the downstream node's geometry
+    sum the areas of the nodes that are merged
+    merge the upstream node's river reach polyline with the node's polyline.
 
 """
 
-import psycopg2
+import warnings
+warnings.filterwarnings('ignore')
+import pandas as pd
+import networkx as nx
+from util.db import connection, cursor, engine, db_close
 
-# Connect to your PostgreSQL database
-conn = psycopg2.connect(
-    host="localhost",
-    database="basins",
-    user="postgres",
-    password="dbpw"
-)
-cur = conn.cursor()
-
+# Megabasin to process
 id = 11
 
-# New, let's get the 99th percentile of the areas so we can exclude those!
+# Area in km² of a unit catchment below which we will eliminate it by merging it with its upstream neighbor
+threshold = 100
+
+
+# Read in data from Step #3
 sql = f"""
-SELECT PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY unitarea) AS percentile_99
-FROM merit_basins_{id};
+SELECT comid as comid, unitarea, nextdown, shreve, numup
+FROM merit_basins2_{id}
 """
-cur.execute(sql)
-p99 = cur.fetchone()[0]
 
+# Read the result of the SQL query into an ordinary Pandas DataFrame
+df = pd.read_sql(sql, connection)
+df.set_index('comid', inplace=True)
 
-# What this SQL query should do:
-# Finds all the MERGES the unit catchments with sorder = 1
-# when they drain to the same downstream
-# For coastal catchments, where there is no upstream neighbor and which drain to the ocean
-# (sorder = 1 AND nextdown = 0), we will exclude these.
+# Create a networkx object out of the rivers data.
+G = nx.DiGraph()
 
-sql = f"DROP TABLE IF EXISTS merit_basins2_{id};"
-cur.execute(sql)
-conn.commit()
+# Populate the graph's nodes and edges.
+for node_id, nextdown in df['nextdown'].items():
+    # Add node with comid as node ID
+    G.add_node(node_id)
+    # Add edge from comid to nextdown
+    if nextdown > 0:
+        G.add_edge(node_id, nextdown)
 
-sql_query = f"""
-CREATE TABLE merit_basins2_{id} AS
+# Find the set of SERIAL NODES that are *candidates for removal*
+sql = f"""
 SELECT 
-    CASE 
-        WHEN (sorder = 1 
-          AND unitarea < {p99}) THEN nextdown
-        ELSE comid
-    END AS comid2,
-    ST_Union(geom_simple) as geom, 
-    COUNT(comid) as num_merged,
-    MAX(sorder) as sorder, 
-    SUM(unitarea) as unitarea
-FROM merit_basins_{id} 
-WHERE nextdown > 0 OR sorder > 1
-GROUP BY comid2;
+    comid, 
+    shreve
+FROM 
+    merit_basins2_{id}
+WHERE 
+    shreve > 1
+    AND numup = 1
+    AND unitarea < {threshold}
 """
-cur.execute(sql_query)
-conn.commit()
 
-# I could not figure out a reliable way to keep the nextdown field after the dissolve
-# so we'll do a table join and extract the info from the original table.
+nodes_df = pd.read_sql(sql, connection)
+
+nodes_list = nodes_df['comid'].values.tolist()
+nodes_df.set_index('comid', inplace=True)
+
+# Let's use the graph as an easy way to get the upstream nodes. Add this info to our nodes DataFrame
+nodes_df['upnode'] = 0
+nodes_df = nodes_df.astype({'upnode': int})
+
+# Add upstream node to our candidate nodes DataFrame
+for node in nodes_list:
+    upnodes = list(G.predecessors(node))
+    if len(upnodes) > 1:
+        print("Something wrong")
+    else:
+        nodes_df.loc[node, 'upnode'] = upnodes[0]
+
+# Modify the DataFrame to add information about where merging should occur.
+df['mergeid'] = df.index
+
+# Here is the algorithm for merging the serial nodes
+# The rule is, merge the upstream unit catchment IFF their combined area is below our threshold.
+# If we have done a merge, and there is another upstream serial node, use the same rule to consider adding it.
+# Continue thusly until either the accumulated area > threshold or there are no more upstream nodes.
+
+# First, sort nodes_df by shreve order , Z > A, so we will always be starting downstream and working up.
+nodes_df.sort_values(by='shreve', ascending=False, inplace=True)
+
+# Now, we are going to iterate over the nodes, considering what to do with them one at a time.
+# Re-extract the nodes list to get it in the order of Shreve order, high to low.
+nodes_list = nodes_df.index.tolist()
+
+merges = {}
+accum_area = 0
+node = nodes_list.pop(0)
+node_area = df.loc[node, 'unitarea']
+upnode = nodes_df.loc[node, 'upnode']
+
+while len(nodes_list) > 0:
+    upnode_area = df.loc[upnode, 'unitarea']
+    # If the accumulated area of the new node will be less than threshold, add it
+    if accum_area + upnode_area < threshold:
+        accum_area = accum_area + upnode_area  # update the accumulated area
+
+        # Add the upstream node to the merges Dictionary
+        if node not in merges:
+            merges[node] = [upnode]
+        else:
+            merges[node].append(upnode)
+
+        # Check to see if we can continue going upstream
+        if upnode in nodes_list:
+            nodes_list.remove(upnode)
+            upnode = nodes_df.loc[upnode, 'upnode']
+        else:
+            node = nodes_list.pop(0)
+            node_area = df.loc[node, 'unitarea']
+            accum_area = node_area
+            upnode = nodes_df.loc[node, 'upnode']
+    else:
+        node = nodes_list.pop(0)
+        node_area = df.loc[node, 'unitarea']
+        accum_area = node_area
+        upnode = nodes_df.loc[node, 'upnode']
+
+# Do a quick statistical summary of how many merges we have done and how many subbbasins are merged each time
+stats = {}
+for k, v in merges.items():
+    num_merged = len(v)
+    if num_merged not in stats:
+        stats[num_merged] = 1
+    else:
+        stats[num_merged] = stats[num_merged] + 1
+
+# Now, put the information about the merging into the DataFrame.
+for target, sources in merges.items():
+    for source in sources:
+        df.loc[source, 'mergeid'] = target
+        df.loc[source, 'nextdown'] = df.loc[target, 'nextdown']
+
+# Here, we update the information about the next downstream connection.
+for target, sources in merges.items():
+    source = sources.pop()
+    rows = df[df['nextdown'] == source]
+    indices = rows.index.tolist()
+    for index in indices:
+        df.loc[index, 'nextdown'] = target
+
+# Next, write the DataFrame to a temporary table.
+df.reset_index(inplace=True)
+df = df[['comid', 'mergeid', 'nextdown']]
+df.to_sql('a_temp', engine, if_exists='replace', index=False)
+
+# Now we will do a table join and dissolve the geometries
 sql = f"""
-ALTER TABLE merit_basins2_{id}
-ADD COLUMN nextdown INTEGER;
-"""
-cur.execute(sql)
-conn.commit()
+DROP TABLE IF EXISTS merit_basins4_{id}; 
 
+CREATE TABLE merit_basins4_{id} AS
+SELECT 
+    mergeid as comid, 
+    ST_UNION(geom) as geom, 
+    SUM(M.unitarea) as unitarea, 
+    MAX(a_temp.nextdown) as nextdown
+FROM merit_basins2_{id} as M
+LEFT JOIN a_temp ON M.comid = a_temp.comid
+GROUP by mergeid;
+"""
+
+cursor.execute(sql)
+connection.commit()
+
+# Now let's make the RIVERS
 sql = f"""
-UPDATE merit_basins2_{id} as m2
-SET nextdown = mb.nextdown
-FROM merit_basins_{id} as mb
-WHERE m2.comid2 = mb.comid; 
+DROP TABLE IF EXISTS merit_rivers4_{id};
+
+CREATE TABLE merit_rivers4_{id} AS
+SELECT 
+    mergeid as comid, 
+    ST_LineMerge(ST_UNION(geom_simple)) as geom, 
+    SUM(R.lengthkm) as lengthkm
+FROM 
+    merit_rivers2_{id} as R
+LEFT JOIN 
+    a_temp ON R.comid = a_temp.comid
+GROUP by 
+    mergeid;
 """
-cur.execute(sql)
-conn.commit()
-
-# Inconvenient and confusing to have field named comid2
-sql = f"ALTER TABLE merit_basins2_{id} RENAME COLUMN comid2 TO comid;"
-cur.execute(sql)
-
-# Add the spatial index!
-sql = f"""
-    CREATE INDEX merit_basins2_{id}_idx
-    ON merit_basins2_{id}
-    USING GIST(geom);
-"""
-
-# Execute the SQL query
-cur.execute(sql)
-
-RIVERS = True
-if RIVERS:
-    # Rivers
-    sql_query = f"""
-    DROP TABLE IF EXISTS merit_rivers2_{id};
-    CREATE TABLE merit_rivers2_{id} AS
-    SELECT r.comid, r.lengthkm, r.uparea, r.geom_simple
-    FROM merit_rivers_{id} r
-    INNER JOIN merit_basins2_{id} b ON r.comid = b.comid;
-    """
-    cur = conn.cursor()
-    cur.execute(sql_query)
+cursor.execute(sql)
 
 # Close the database connection
-conn.commit()
-cur.close()
-conn.close()
-
+db_close()

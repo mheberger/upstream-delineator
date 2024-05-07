@@ -38,8 +38,8 @@ rows4 = cur.fetchall()
 cur.execute(sql5)
 rows5 = cur.fetchall()
 
-#cur.execute(sql7)
-#rows7 = cur.fetchall()
+#cursor.execute(sql7)
+#rows7 = cursor.fetchall()
 
 # Print the number of features
 print("Number of unit cathcments:")
