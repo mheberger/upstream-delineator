@@ -7,14 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.stats as stats
 import seaborn as sns
-
-# Connect to your PostgreSQL database
-conn = psycopg2.connect(
-    host="localhost",
-    database="basins",
-    user="postgres",
-    password="dbpw"
-)
+from util.db import cursor, db_close
 
 id = 77
 
@@ -24,19 +17,18 @@ sql4 = f"SELECT unitarea from merit_basins4_{id} WHERE unitarea IS NOT NULL;"
 sql5 = f"SELECT unitarea from merit_basins5_{id} WHERE unitarea IS NOT NULL;"
 #sql7 = f"SELECT unitarea from merit_basins7_{id} WHERE unitarea IS NOT NULL;"
 
-cur = conn.cursor()
 
-cur.execute(sql1)
-rows1 = cur.fetchall()
+cursor.execute(sql1)
+rows1 = cursor.fetchall()
 
-cur.execute(sql2)
-rows2 = cur.fetchall()
+cursor.execute(sql2)
+rows2 = cursor.fetchall()
 
-cur.execute(sql4)
-rows4 = cur.fetchall()
+cursor.execute(sql4)
+rows4 = cursor.fetchall()
 
-cur.execute(sql5)
-rows5 = cur.fetchall()
+cursor.execute(sql5)
+rows5 = cursor.fetchall()
 
 #cursor.execute(sql7)
 #rows7 = cursor.fetchall()
@@ -56,11 +48,7 @@ values4 = [row[0] for row in rows4]
 values5 = [row[0] for row in rows5]
 #values7 = [row[0] for row in rows7]
 
-# Close the cursor
-cur.close()
-
-# Close the connection
-conn.close()
+db_close()
 
 # Compute the cumulative distribution function (CDF)
 sorted_values1 = np.sort(values1)

@@ -1,3 +1,12 @@
+"""
+Inserts the lat, lng coordinates for the *basin outlet* into the MERIT-Basins river reaches tables.
+This is simply the end point of the river reach.
+
+Note that the rivers are ALWAYS backwards, and so their endpoint with PostGIS function `ST_StartPoint()`
+
+I simply write the information back to the table.
+"""
+
 import psycopg2
 
 # Connect to your PostgreSQL database

@@ -2,6 +2,25 @@
 # These are useful for visualizing and processing the river network data.
 
 import networkx as nx
+from pandas import DataFrame
+
+def make_river_network(df: DataFrame) -> nx.Graph:
+    """
+    Creates a network graph of our river network data.
+    Input is a Pandas DataFrame. The index should be a unique id for the node in the network (river reach, unit catchment)
+    and there must be a field `nextdown`, which is id the downstream neighbor, or direction of flow.
+    """
+    G = nx.DiGraph()
+
+    # Populate the graph's nodes and edges.
+    for node_id, nextdown in df['nextdown'].items():
+        # Add node with comid as node ID
+        G.add_node(node_id)
+        # Add edge from comid to nextdown
+        if nextdown > 0:
+            G.add_edge(node_id, nextdown)
+
+    return G
 
 
 def calculate_strahler_stream_order(graph):

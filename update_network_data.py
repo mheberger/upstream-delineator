@@ -10,99 +10,67 @@ This is important later on for the delineation algorithms.
 
 import warnings
 warnings.filterwarnings('ignore')
-import psycopg2
 import pandas as pd
-import networkx as nx
-from sqlalchemy import create_engine
-from util.graph_tools import calculate_strahler_stream_order, calculate_shreve_stream_order, calculate_num_incoming
+from util.graph_tools import calculate_strahler_stream_order, calculate_shreve_stream_order, calculate_num_incoming, make_river_network
+from util.db import connection, cursor, engine, db_close
 
 
-# New: updated so it can do this for different files.
-level = 4
-id = 11
+def update_network(tbl: str):
+    # Define your SQL query
+    sql = f"""
+    SELECT comid, nextdown
+    FROM {tbl};
+    """
 
-host = "localhost"
-database = "basins"
-user = "postgres"
-password = "dbpw"
-port = 5432
+    # Read the result of the SQL query into a GeoDataFrame
+    df = pd.read_sql(sql, connection)
+    df.set_index('comid', inplace=True)
 
-# Connect to your PostgreSQL database
-conn = psycopg2.connect(
-    host=host,
-    database=database,
-    user=user,
-    password=password
-)
+    # Create a networkx object out of the rivers data.
+    G = make_river_network(df)
+    G = calculate_strahler_stream_order(G)
+    G = calculate_shreve_stream_order(G)
+    G = calculate_num_incoming(G)
 
-# Create a SQLAlchemy engine
-engine = create_engine('postgresql://{}:{}@{}:{}/{}'.format(user, password, host, port, database))
+    # Now put the information from the graph into the DataFrame, and then use this to update the Posgres GIS layer
+    df['shreve'] = 0
+    df['strahler'] = 0
+    df['numup'] = 0
 
-# Define your SQL query
-sql = f"""
-SELECT comid, nextdown
-FROM merit_basins{level}_{id};
-"""
+    df = df.astype({'shreve': int})
+    df = df.astype({'strahler': int})
+    df = df.astype({'numup': int})
 
-# Read the result of the SQL query into a GeoDataFrame
-df = pd.read_sql(sql, conn)
-df.set_index('comid', inplace=True)
+    for node in G.nodes:
+        df.loc[node, 'shreve'] = G.nodes[node]['shreve_order']
+        df.loc[node, 'strahler'] = G.nodes[node]['strahler_order']
+        df.loc[node, 'numup'] = G.nodes[node]['num_incoming']
 
-# Create a networkx object out of the rivers data.
-G = nx.DiGraph()
+    # Now use this data to update the DB table
+    df.reset_index(inplace=True)
+    df.to_sql('a_temp', engine, if_exists='replace', index=False)
 
-for node_id, nextdown in df['nextdown'].items():
-    # Add node with comid as node ID
-    G.add_node(node_id)
-    # Add edge from comid to nextdown
-    if nextdown > 0:
-        G.add_edge(node_id, nextdown)
+    sql = f"""
+    ALTER TABLE {tbl}
+    ADD COLUMN IF NOT EXISTS numup INTEGER,
+    ADD COLUMN IF NOT EXISTS strahler INTEGER,
+    ADD COLUMN IF NOT EXISTS shreve INTEGER;
+    """
 
-G = calculate_strahler_stream_order(G)
-G = calculate_shreve_stream_order(G)
-G = calculate_num_incoming(G)
+    cursor.execute(sql)
 
-# Now put the information from the graph into the DataFrame, and then use this to update the Posgres GIS layer
-df['shreve'] = 0
-df['strahler'] = 0
-df['numup'] = 0
+    sql = f"""
+    UPDATE {tbl} AS m
+    SET numup = a_temp.numup, 
+     strahler = a_temp.strahler,
+     shreve = a_temp.shreve
+    FROM a_temp
+    WHERE m.comid = a_temp.comid;
+    """
+    cursor.execute(sql)
 
-df = df.astype({'shreve': int})
-df = df.astype({'strahler': int})
-df = df.astype({'numup': int})
+    db_close()
 
-for node in G.nodes:
-    df.loc[node, 'shreve'] = G.nodes[node]['shreve_order']
-    df.loc[node, 'strahler'] = G.nodes[node]['strahler_order']
-    df.loc[node, 'numup'] = G.nodes[node]['num_incoming']
 
-# Now use this data to update the DB table
-df.reset_index(inplace=True)
-df.to_sql('a_temp', engine, if_exists='replace', index=False)
-
-sql = f"""
-ALTER TABLE merit_basins{level}_{id}
-ADD COLUMN IF NOT EXISTS numup INTEGER,
-ADD COLUMN IF NOT EXISTS strahler INTEGER,
-ADD COLUMN IF NOT EXISTS shreve INTEGER;
-"""
-
-cur = conn.cursor()
-cur.execute(sql)
-
-sql = f"""
-UPDATE merit_basins{level}_{id} AS m
-SET numup = a_temp.numup, 
- strahler = a_temp.strahler,
- shreve = a_temp.shreve
-FROM a_temp
-WHERE m.comid = a_temp.comid;
-
-"""
-cur.execute(sql)
-
-conn.commit()
-conn.close()
-
-# Close the engine
-engine.dispose()
+if __name__ == "__main__":
+    update_network("basins1")
