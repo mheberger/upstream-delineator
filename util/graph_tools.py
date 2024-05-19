@@ -1,8 +1,10 @@
-# A couple of functions to calculate the stream order (Strahler and Shreve)
+# A set of functions for manipulating river network data as Python NetworkX Graphs.
+# Functions to create a graph, calculate the stream order (Strahler and Shreve)
 # These are useful for visualizing and processing the river network data.
 
 import networkx as nx
 from pandas import DataFrame
+
 
 def make_river_network(df: DataFrame) -> nx.Graph:
     """

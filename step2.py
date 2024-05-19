@@ -36,10 +36,17 @@ from util.graph_tools import make_river_network
 
 def step2(threshold: float):
     """
-    Becaise this operates on the temporary output table from step #1, we do not need the basin ID
+    Second step in reducing the number of subcatchments. The first step produces many "serial"
+    catchments, where there is one up and one down.
 
-     threshold: Area in km² of a unit catchment below which we will
-                eliminate it by merging it with its upstream neighbor
+    Because this function operates on the temporary output table from step #1, we do not need the basin ID
+
+    Inputs are the tables `basins1` and `rivers1`.
+
+    threshold: Area in km² of a unit catchment below which we will
+               eliminate it by merging it with its upstream neighbor.
+
+    Output: tables `basins2` and `rivers2`
     """
 
     # Read in data from Step #1

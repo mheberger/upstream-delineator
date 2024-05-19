@@ -63,5 +63,15 @@ have a set of options. I can create a set of successively larger basins, up 1 le
 Next step: get the river polylines for each layer, so I can extract the basin outlets. Add this as fields in the sub-basin attribute table? 
 Or I can store it in the river reaches attribute table. 
 
+# Limitations
 
+The code mostly assumes that the user's inputs make sense, and I have not created code to handle all of the myriad edge cases. 
+
+- First point is the main basin outlet, and all the following points should all be contained in the first point's watershed. 
+- All the points should be in the same megabasin. 
+- The points should all fall into different unit catchments. This means that the user should not provide closely-spaced points along a river.
+- The routine uses the high-resolution geometry only. Neither GeoPandas nor PostGIS offer topologically-aware simplification routines. If you want to simplify the unit catchments polygons or the river polylines, you will need to use external software to do so. Mapshaper works well, and can be run from the command line, however it can only accept shapefiles or geojson, and not geopackages. Otherwise, GIS software like QGIS (free) or ArcGIS (commercial) can do the job. 
+- For simplicity, the routine only does one large watershed at a time. So the input CSV file containing outlets should contain point 0 in the first row, and any internal points in following rows. 
+- Currently, only uses data from MERIT-Hydro (raster) and MERIT-Basins (vector). The same principles should be able to be applied to other datasets in the future (like HydroSHEDS version 2) with some modifications. 
+ 
  

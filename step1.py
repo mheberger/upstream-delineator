@@ -14,9 +14,15 @@ from util.db import cursor, db_close
 
 
 def step1(basin: int, max_area_threshold: int):
-    """Finds all the MERGES the unit catchments with sorder = 1 which drain to same downstream neighbor
+    """
+    First step in reducing the number of subcatchments, while preserving the total area and the
+    connectivity of the river network.
+
+    Finds all the MERGES the unit catchments with sorder = 1 which drain to same downstream neighbor
     For coastal catchments, where there is no upstream neighbor, and they drain to the ocean
     (sorder = 1 AND nextdown = 0), we will exclude these.
+
+    Creates the temporary tables `basins1` and `river1`
     """
 
     sql = f"DROP TABLE IF EXISTS basins1;"
@@ -77,4 +83,5 @@ def step1(basin: int, max_area_threshold: int):
 
 if __name__ == "__main__":
     step1(11, 150)
+    # Every time I run one of the steps, I have to update the river network data (shreve, strahler, numup)
     update_network("basins1")

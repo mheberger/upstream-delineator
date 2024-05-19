@@ -21,9 +21,7 @@ TODO: Often needs to be run multiple times because on the first pass, it is not 
 
 """
 import warnings
-
 from update_network_data import update_network
-
 warnings.filterwarnings('ignore')
 import pandas as pd
 from util.db import connection, cursor, engine, db_close
@@ -32,7 +30,9 @@ from util.graph_tools import make_river_network
 
 def step3(area_threshold: float, length_threshold: float, basins_tbl: str, rivers_tbl: str):
     """
-    Step #3 removes small "junction" nodes from the network.
+    Step #3 removes small "junction" nodes from the network. These are small subcatchments that were not
+    handled by either of the previous steps, because they have two or more upstream connections, and so
+    they are not very easy to get rid of without creating topology problems.
 
     Inputs:
         area_threshold: Area of the unit catchment, in km²
