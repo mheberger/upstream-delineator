@@ -234,9 +234,6 @@ def get_megabasin(points_gdf) -> int:
     Returns:
         the ID of the megabasin, an integer from 11 to 91
     """
-    # TODO: This is just to speed up testing!!!
-    return 27
-
     if VERBOSE: print("Finding out which Level 2 megabasin(s) your outlets are in")
 
     megabasins_gdf = load_megabasins()
@@ -349,7 +346,7 @@ def load_gdf(geotype: str, basin: int, high_resolution: bool) -> gpd.GeoDataFram
 
     if VERBOSE: print(f"Reading geodata in {shapefile}")
     gdf = gpd.read_file(shapefile)
-    # gdf.set_index('COMID', inplace=True)
+    #gdf.set_index('COMID', inplace=True)
 
     # This line is necessary because some of the shapefiles provided by reachhydro.com do not include .prj files
     gdf.set_crs(PROJ_WGS84, inplace=True, allow_override=True)
@@ -470,6 +467,7 @@ def delineate2():
         B is a Python List of the unit catchments that make up our watershed.
         B is for BASIN...
         List items are `comid`s, unique identifiers of each unit catchment.
+
         """
         # first, append the node to the list that is in the Basin, B
         B.append(node)
@@ -542,6 +540,7 @@ def delineate2():
     # (this is just how the MeritBASIS authors did it)
     if VERBOSE: print('Reading data table for rivers in basin %s' % megabasin)
     rivers_gdf = load_gdf("rivers", megabasin, True)
+    rivers_gdf.set_index('COMID', inplace=True)
 
     # Perform a Spatial join on gages (points) and the unit catchments (polygons)
     # to find the corresponding unit catchment for each gage
@@ -625,7 +624,7 @@ def delineate2():
     G = make_river_network(subbasins_gdf, terminal_comid)
 
     G = calculate_strahler_stream_order(G)
-    if PLOTS: draw_graph(G, 'before')
+    if PLOTS: draw_graph(G, 'plots/before')
 
     # Create a dictionary of the new nodes to add : the comid that we're inserting them into!
     gages_joined.set_index('id', inplace=True)
@@ -635,7 +634,7 @@ def delineate2():
     for node, comid in new_nodes.items():
         G = insert_node(G, node, comid)
 
-    if PLOTS: draw_graph(G, 'after')
+    if PLOTS: draw_graph(G, 'plots/after')
 
     # Now we have a new, accurate network topology. Now we only need to take care of the geography,
     # by splitting the polygons to find the geography (catchment polygon) for the
@@ -652,10 +651,14 @@ def delineate2():
         lng = gages_joined.at[node, 'lng']
         subbasins_gdf.loc[node] = [None, None, lat, lng, int(comid)]
 
-    # Kind of hackish, but coerce the field nextdown back to integer type.
+    # Kind of hackish, but coerce the field nextdown back to integer type
+    # to fix the problem where the comids were being turned into floats
     subbasins_gdf['nextdown'] = subbasins_gdf['nextdown'].astype(int)
 
-    # Append the column `type` (to hold leaf or stem)
+    # Append the column `type` (to hold 'leaf' or 'stem')
+    # This will be important later when we squash and simplify the river network,
+    # because we MUST NOT remove these user-defined nodes!
+    # TODO: Consider making this just 'new' ?
     subbasins_gdf['type'] = ''
 
     # Let's update the field `nextdown` by iterating over the rows and getting the data from the GRAPH.
@@ -669,7 +672,7 @@ def delineate2():
         # Add whether it is a leaf or a stem
         try:
             node_type = G.nodes[index]['type']
-        except:
+        except KeyError:
             node_type = ''
         subbasins_gdf.at[index, 'type'] = node_type
 
@@ -736,7 +739,7 @@ def delineate2():
                 clipped_line = river_polyline.intersection(basin_polygon)
                 myrivers_gdf.at[id, 'geometry'] = clipped_line
                 lengthkm = calc_length(clipped_line)
-                myrivers_gdf.at[id, 'lengthkm'] = lengthkm
+                myrivers_gdf.at[id, 'lengthkm'] = round(lengthkm, 1)
 
     myrivers_gdf = myrivers_gdf.drop(terminal_comid)
 
@@ -757,7 +760,6 @@ def delineate2():
     write_geodata(myrivers_gdf, fname)
 
     if VERBOSE: print("Ran successfully!")
-
 
 
 if __name__ == "__main__":

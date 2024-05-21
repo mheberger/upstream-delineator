@@ -10,7 +10,7 @@ outside of the sample data provided for Iceland.
 """
 
 # Path to your CSV file with the watershed outlet data
-OUTLETS_CSV = 'outlets_sample2.csv'
+OUTLETS_CSV = 'outlets_sample4.csv'
 
 # Set to True for "higher resolution" mode or False for "lower resolution."
 HIGH_RES = True
@@ -22,21 +22,24 @@ DISSOLVE = False
 # Download from https://mghydro.com/watersheds/rasters
 # For all paths, do not include a trailing slash.
 MERIT_FDIR_DIR = "data/raster/flowdir_basins"
+MERIT_FDIR_DIR = r"C:\Data\GIS\MERITHydro\flow_dir_basins"
 
 # Directory containing the merged, basin-scale MERIT-Hydro flow accumulation rasters (.tif)
 # Download from https://mghydro.com/watersheds/rasters
 MERIT_ACCUM_DIR = "data/raster/accum_basins"
+MERIT_ACCUM_DIR = r"C:\Data\GIS\MERITHydro\accum_basins"
 
 # Set to True if you want the script to write status messages to the console
 VERBOSE = True
 
 # Set to True to make a bunch of plots of each watershed.
 # (Just for debugging. Slows down the script a lot.)
-PLOTS = False
+PLOTS = True
 
 # Folder where you have stored the Merit-BASINS catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins
 HIGHRES_CATCHMENTS_DIR = "data/shp/merit_catchments"
+HIGHRES_CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
 
 # Location of simplified unit catchment boundaries vector data (shapefiles)
 # Download from: https://mghydro.org/watersheds/share/catchments_simplified.zip
