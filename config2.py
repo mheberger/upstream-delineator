@@ -10,7 +10,7 @@ outside of the sample data provided for Iceland.
 """
 
 # Path to your CSV file with the watershed outlet data
-OUTLETS_CSV = 'outlets_sample.csv'
+OUTLETS_CSV = 'outlets_sample2.csv'
 
 # Set to True for "higher resolution" mode or False for "lower resolution."
 HIGH_RES = True
@@ -32,7 +32,7 @@ VERBOSE = True
 
 # Set to True to make a bunch of plots of each watershed.
 # (Just for debugging. Slows down the script a lot.)
-PLOTS = True
+PLOTS = False
 
 # Folder where you have stored the Merit-BASINS catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins
