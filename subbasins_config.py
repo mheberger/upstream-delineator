@@ -12,13 +12,13 @@ outside of the sample data provided for Iceland.
 # Directory containing the merged, basin-scale MERIT-Hydro flow direction rasters (.tif)
 # Download from https://mghydro.com/watersheds/rasters
 # For all paths, do not include a trailing slash.
-MERIT_FDIR_DIR = "data/raster/flowdir_basins"
 MERIT_FDIR_DIR = r"C:\Data\GIS\MERITHydro\flow_dir_basins"
+# MERIT_FDIR_DIR = "data/raster/flowdir_basins"
 
 # Directory containing the merged, basin-scale MERIT-Hydro flow accumulation rasters (.tif)
 # Download from https://mghydro.com/watersheds/rasters
-MERIT_ACCUM_DIR = "data/raster/accum_basins"
 MERIT_ACCUM_DIR = r"C:\Data\GIS\MERITHydro\accum_basins"
+# MERIT_ACCUM_DIR = "data/raster/accum_basins"
 
 # Set to True if you want the script to write status messages to the console
 VERBOSE = True
@@ -29,12 +29,15 @@ PLOTS = False
 
 # Set to true to output a network diagram of the river network.
 # This is a simplified view of the flow pathways.
+# IMPORTANT: For this to work, you need to have GraphViz installed on your computer.
+#  (Not just the graphviz Python library, which lets you access its functions.)
+#  Download installers here: https://graphviz.org/download/
 NETWORK_DIAGRAMS = True
 
 # Folder where you have stored the Merit-BASINS unit catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins
-CATCHMENTS_DIR = "data/shp/merit_catchments"
 CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
+# CATCHMENTS_DIR = "data/shp/merit_catchments"
 
 
 # Folder where you have stored the MERIT-Basins River flowline shapefiles
@@ -71,3 +74,21 @@ SIMPLIFY = True
 
 # If SIMPLIFY is True, set SIMPLIFY_TOLERANCE to a value in decimal degrees.
 SIMPLIFY_TOLERANCE = 0.0008
+
+# Do you wish to retun the whole watershed (a single polygon) for each of the outlet points?
+WATERSHEDS = True
+
+# Watersheds created with Merit-Hydro data tend to have many "donut holes"
+# ranging from one or two pixels to much larger. Setting FILL = True, will
+# fill in these donut holes, and generally result in a better appearance
+# and smaller output files.
+FILL = True
+
+# If FILL = True, you many choose to to fill only those donut holes that are smaller than
+# a certain size. In other words, it will keep the big holes and fill in the small
+# ones. This is roughly the number of pixels, on the 3 arcsecond grid.
+# Set to 0 to fill ALL holes. Setting FILL_THRESHOLD = 100 will fill all the holes
+# that are less than 100 pixels in size. (Little ones are usually minor topological
+# errors in the input data, while larger holes *may* be more meaningful, reflecting
+# surface drainage patterns.)
+FILL_THRESHOLD = 100

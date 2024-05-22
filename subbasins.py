@@ -35,6 +35,7 @@ from py.util import *  # This one contains a bunch of functions
 from py.graph_tools import *  # Functions for working with river network information as a Python NetworkX graph
 from py.merit_detailed import split_catchment
 from py.plot_network import draw_graph
+from py.fast_dissolve import dissolve_geopandas, buffer, close_holes
 
 # Shapely throws a bunch of FutureWarnings. Safe to ignore for now, as long as we
 # are using a virtual environment, and use the library versions in requirements.txt.
@@ -101,12 +102,6 @@ def delineate(input_csv: str, output_prefix: str):
 
     # Check that the CSV file includes at a minimum: id, lat, lng and that all values are appropriate
     validate(gages_df)
-
-    # Get the number of points in the gages file
-    n_gages = len(gages_df)
-
-    # Boolean vars to track whether user's outlets file had fields `name`
-    bNames = 'name' in gages_df
 
     # Create fields for the "snapped" points, and the distance from the input coordinates
     gages_df['lat_snap'] = np.nan
@@ -364,6 +359,8 @@ def delineate(input_csv: str, output_prefix: str):
     if SIMPLIFY:
         topo = topojson.Topology(subbasins_gdf, prequantize=False)
         subbasins_gdf = topo.toposimplify(SIMPLIFY_TOLERANCE).to_gdf()
+        # The simplification often creates topology errors (ironic!), so try my trick to fix.
+        subbasins_gdf.geometry = subbasins_gdf.geometry.apply(lambda p: buffer(p))
         topo = topojson.Topology(myrivers_gdf, prequantize=False)
         myrivers_gdf = topo.toposimplify(SIMPLIFY_TOLERANCE).to_gdf()
 
@@ -379,6 +376,8 @@ def delineate(input_csv: str, output_prefix: str):
     # (1) SUBBASINS
     subbasins_gdf.reset_index(inplace=True)
     subbasins_gdf.rename(columns={'index': 'comid'}, inplace=True)
+    subbasins_gdf.rename(columns={'COMID': 'comid'}, inplace=True)
+
     fname = f"{OUTPUT_DIR}/{output_prefix}_subbasins.{OUTPUT_EXT}"
     write_geodata(subbasins_gdf, fname)
 
@@ -394,13 +393,45 @@ def delineate(input_csv: str, output_prefix: str):
     fname = f"{OUTPUT_DIR}/{output_prefix}_rivers.{OUTPUT_EXT}"
     write_geodata(myrivers_gdf, fname)
 
+    # Finally, return the larger watersheds for each outlet point, if desired
+    if WATERSHEDS:
+        if VERBOSE: print(f"Creating watersheds for {len(new_nodes)} outlets.")
+        subbasins_gdf.set_index('comid', inplace=True)
+
+        if FILL:
+            PIXEL_AREA = 0.000000695  # Constant for the area of a single pixel in MERIT-Hydro, in decimal degrees
+            area_max = FILL_THRESHOLD * PIXEL_AREA
+        # Iterate over each of the user's nodes
+        for node in new_nodes.keys():
+            if VERBOSE: print(f"Creating watershed for outlet: {node}")
+            upnodes = upstream_nodes(G, node)
+            upnodes.append(node)
+            mysubs_gdf = subbasins_gdf.loc[upnodes]
+            if len(upnodes) == 1:
+                watershed_gdf = mysubs_gdf
+            else:
+                watershed_gs = dissolve_geopandas(mysubs_gdf)
+                watershed_gdf = gpd.GeoDataFrame(watershed_gs, columns=['geometry'])
+                watershed_gdf['id'] = node
+
+            if FILL:
+                watershed_gdf.geometry = watershed_gdf.geometry.apply(lambda p: close_holes(p, area_max))
+
+            fname = f"{OUTPUT_DIR}/wshed_{node}.{OUTPUT_EXT}"
+            write_geodata(watershed_gdf, fname)
+
     if VERBOSE: print("Ran succesfully!")
 
 
 def _run():
+    """
+    Routine which is run when you call subbasins.py from the command line.
+    should be run like:
+    python subbasins.py outlets.csv run_name
+    """
     # Create the parser for command line inputs.
     description = "Delineate subbasins using data in and input CSV file. Writes " \
-                   "a set of output files beginning with the output prefix string."
+        "a set of output files beginning with the output prefix string."
 
     parser = argparse.ArgumentParser(description=description)
 
@@ -421,6 +452,6 @@ if __name__ == "__main__":
         _run()
     else:
         # Run directly, for convenience or during development and debugging
-        input_csv = 'test_inputs/outlets4.csv'
-        output_prefix = 'yuba'
+        input_csv = 'test_inputs/outlets3.csv'
+        output_prefix = 'ice3'
         delineate(input_csv, output_prefix)

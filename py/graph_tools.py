@@ -9,10 +9,9 @@ from pandas import DataFrame
 def make_river_network(df: DataFrame, terminal_node=None) -> nx.Graph:
     """
     Creates a network graph of our river network data.
-    Input is a Pandas DataFrame. The index should be a unique id for the node in the network (river reach, unit catchment)
+    Input is a Pandas DataFrame. The index should be a unique id for the node in the network
+    The id usually correponds 1:1 with river reaches unit catchments.
     and there must be a field `nextdown`, which is id the downstream neighbor, or direction of flow.
-
-    TODO: Do not add an outgoing edge to the river network's terminal node?
     """
     G = nx.DiGraph()
 
@@ -88,7 +87,8 @@ def calculate_shreve_stream_order(graph: nx.Graph) -> nx.Graph:
 
     for node in nx.topological_sort(graph):
         if upstream_nodes[node]:
-            graph.nodes[node]['shreve_order'] = max([graph.nodes[upstream]['shreve_order'] for upstream in upstream_nodes[node]]) + 1
+            graph.nodes[node]['shreve_order'] = max([graph.nodes[upstream]['shreve_order']
+                                                     for upstream in upstream_nodes[node]]) + 1
 
     return graph
 
@@ -100,37 +100,6 @@ def calculate_num_incoming(G):
     for node in G.nodes():
         num_incoming = G.in_degree(node)
         G.nodes[node]['num_incoming'] = num_incoming
-
-    return G
-
-
-def add_distance_from_outlet(G):
-    """
-    Adds an attribute `distance` to each node, indicating the number of edges
-    between the node and the outlet (terminal node)
-
-    I just made up this attribute.
-    It is kind of the inverse of the shreve order.
-    So perhaps it is not really necessary.
-    I initially thought it could be useful for plotting the network, until I discovered GraphViz.
-    Code from ChatGPT
-    TODO: Not thoroughly tested!!!
-    """
-
-    # Ensure the graph is a Directed Acyclic Graph (DAG)
-    if not nx.is_directed_acyclic_graph(G):
-        raise ValueError("The graph must be a Directed Acyclic Graph (DAG)")
-
-    # Perform topological sort
-    topo_order = list(nx.topological_sort(G))
-
-    # Initialize distance attribute for all nodes
-    nx.set_node_attributes(G, 0, 'distance')
-
-    # Compute distance for each node
-    for node in topo_order:
-        for pred in G.predecessors(node):
-            G.nodes[node]['distance'] = max(G.nodes[node]['distance'], G.nodes[pred]['distance'] + 1)
 
     return G
 
@@ -213,3 +182,30 @@ def prune_node(G: nx.Graph, node) -> nx.Graph:
     G.remove_node(node)
 
     return G
+
+
+def upstream_nodes(G: nx.Graph, node) -> list:
+    """
+    Return all upstream nodes for a given node in a directed acyclic graph
+
+    Parameters:
+    DAG (networkx.DiGraph): The directed acyclic graph.
+    node (any hashable type): The node for which to find all upstream nodes.
+
+    Returns:
+    set: A set of upstream nodes.
+    """
+    if not G.has_node(node):
+        raise ValueError("The specified node is not in the graph.")
+
+    upstream_nodes = set()
+    to_visit = [node]
+
+    while to_visit:
+        current = to_visit.pop()
+        for predecessor in G.predecessors(current):
+            if predecessor not in upstream_nodes:
+                upstream_nodes.add(predecessor)
+                to_visit.append(predecessor)
+
+    return list(upstream_nodes)
