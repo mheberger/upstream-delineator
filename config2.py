@@ -34,7 +34,7 @@ VERBOSE = True
 
 # Set to True to make a bunch of plots of each watershed.
 # (Just for debugging. Slows down the script a lot.)
-PLOTS = True
+PLOTS = False
 
 # Folder where you have stored the Merit-BASINS catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins

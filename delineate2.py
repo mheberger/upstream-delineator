@@ -9,29 +9,33 @@ See README for more detailed instructions.
 
 """
 
-import warnings
-import numpy as np
-import pickle
-import pandas as pd
-import os
+# Standard Python libraries. See requirements.txt for recommended versions.
 import geopandas as gpd
-import re
-from shapely.geometry import LineString, Point, Polygon, MultiPolygon
-import shapely.ops
-from shapely.wkt import loads
-import sigfig  # for formatting numbers to significant digits
-from py.fast_dissolve import dissolve_geopandas, fill_geopandas
-import pyproj
-from functools import partial
-from config2 import *
-from py.mapper import make_map, create_folder_if_not_exists
-from py.merit_detailed import split_catchment
+import json
 import matplotlib.pyplot as plt
+import networkx
+import numpy as np
+import os
+import pandas as pd
+import pickle
+import pyproj
+import re
+import shapely.ops
+import warnings
+from functools import partial
+from shapely.geometry import LineString, Point, Polygon, MultiPolygon
+from shapely.wkt import loads
 
+# Custom scripts for delineator
+from config2 import *
+from py.fast_dissolve import dissolve_geopandas, fill_geopandas
+from py.mapper import create_folder_if_not_exists
+from py.merit_detailed import split_catchment
 from plot_network import draw_graph
 from util.graph_tools import calculate_strahler_stream_order, calculate_shreve_stream_order, calculate_num_incoming, \
-    make_river_network, insert_node
+     make_river_network, insert_node
 
+# Shapely throws a bunch of FutureWarnings. Safe to ignore for now.
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # The WGS84 projection string, used in a few places
@@ -234,6 +238,7 @@ def get_megabasin(points_gdf) -> int:
     Returns:
         the ID of the megabasin, an integer from 11 to 91
     """
+
     if VERBOSE: print("Finding out which Level 2 megabasin(s) your outlets are in")
 
     megabasins_gdf = load_megabasins()
@@ -601,7 +606,7 @@ def delineate2():
     catchments_gdf.set_index('COMID', inplace=True)
     subbasins_gdf = catchments_gdf.loc[B]
 
-    plot_basins(subbasins_gdf, points_gdf, 'before')
+    if PLOTS: plot_basins(subbasins_gdf, points_gdf, 'before')
 
     # We are going to add a new subbasin for each outlet point!
     # This info is in the rivers dataframe, geom field. It is the *START* point (!)
@@ -705,12 +710,14 @@ def delineate2():
         area = calc_area(cleaned_poly)
         subbasins_gdf.at[comid, 'unitarea'] = round(area, 1)
 
-    if PLOTS:
-        plot_basins(subbasins_gdf, points_gdf, 'after')
+    if PLOTS: plot_basins(subbasins_gdf, points_gdf, 'after')
 
     # After splitting the unit catchments, we can remove the most downstream node
     terminal_comid = new_nodes[terminal_node_id]
     subbasins_gdf = subbasins_gdf.drop(terminal_comid)
+
+    # We should also remove it from our Graph representation
+    G.remove_node(terminal_comid)
 
     # Split the rivers data, based on the results above.
     #   FOr most unit catchments, the river will not change.
@@ -741,23 +748,47 @@ def delineate2():
                 lengthkm = calc_length(clipped_line)
                 myrivers_gdf.at[id, 'lengthkm'] = round(lengthkm, 1)
 
+    # Now we can drop the terminal unit catchment from the rivers dataframe.
     myrivers_gdf = myrivers_gdf.drop(terminal_comid)
 
-    # Export the geodata for (1) subbasins, (2) outlets, and (3) rivers
+    # EXPORT the geodata for (1) subbasins, (2) outlets, and (3) rivers
+
+    # (1) SUBBASINS
     fname = f"{OUTPUT_DIR}/subbasins.{OUTPUT_EXT}"
     write_geodata(subbasins_gdf, fname)
 
-    # Extract the outlet data and write it to disk
+    # (2) Get the OUTLETS data and write it to disk
     outlets_gdf = subbasins_gdf.copy()
     outlets_gdf['geometry'] = outlets_gdf.apply(lambda row: Point(row['lng'], row['lat']), axis=1)
     fname = f"{OUTPUT_DIR}/outlets.{OUTPUT_EXT}"
     write_geodata(outlets_gdf, fname)
 
-    # Write the rivers data to disk.
+    # (3) Write the RIVERS data to disk.
     myrivers_gdf.reset_index(inplace=True)
     myrivers_gdf.rename(columns={'index': 'comid'}, inplace=True)
     fname = f"{OUTPUT_DIR}/rivers.{OUTPUT_EXT}"
     write_geodata(myrivers_gdf, fname)
+
+    # SAVE NETWORK Graph.
+    # Before saving, add the unitarea as an attribute in the graph.
+    for node in list(G.nodes):
+        area = subbasins_gdf.at[node, 'unitarea']
+        G.nodes[node]['area'] = round(area, 1)
+
+    # Here are 4 different options for how to save the graph; other options are possible,
+    #  especially if NetworkX has a `write_##()` method built-in. See:
+    #    https://networkx.org/documentation/stable/reference/readwrite/index.html
+
+    # (1) Python pickle file
+    pickle.dump(G, open("graph.pkl", "wb"))
+    # (2) JSON file
+    data = networkx.node_link_data(G)
+    with open("graph.json", "w") as f:
+        json.dump(data, f)
+    # (3) GML (Graph Modeling Language), a common graph file format.
+    networkx.write_gml(G, "graph.gml")
+    # (4) GraphML is an XML-based file format for graphs.
+    networkx.write_graphml(G, "graph.xml")
 
     if VERBOSE: print("Ran successfully!")
 
