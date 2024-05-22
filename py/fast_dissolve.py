@@ -44,7 +44,7 @@ def close_holes(poly: Polygon or MultiPolygon, area_max: float) -> Polygon or Mu
                   We're working with unprojected lat, lng
                   so this needs to be in square decimal degrees...
     Example:
-        df.geometry.apply(lambda p: close_holes(p))
+        gdf.geometry.apply(lambda p: close_holes(p))
     """
 
     if isinstance(poly, Polygon):
@@ -74,7 +74,6 @@ def close_holes(poly: Polygon or MultiPolygon, area_max: float) -> Polygon or Mu
         return MultiPolygon(result_polygons)
     else:
         raise ValueError("Unsupported geometry type")
-
 
 
 def dissolve_shp(shp: str) -> gpd.GeoDataFrame:
@@ -114,7 +113,6 @@ def dissolve_geopandas(df: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
     lat_point_list = [left, right, right, left, left]
     lon_point_list = [top, top, bottom, bottom, top]
-
 
     polygon_geom = Polygon(zip(lat_point_list, lon_point_list))
     rect = gpd.GeoDataFrame(index=[0], crs=df.crs, geometry=[polygon_geom])
