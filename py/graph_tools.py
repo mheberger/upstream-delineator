@@ -6,7 +6,7 @@ import networkx as nx
 from pandas import DataFrame
 
 
-def make_river_network(df: DataFrame, terminal_node=None) -> nx.Graph:
+def make_river_network(df: DataFrame, terminal_node=None) -> nx.DiGraph:
     """
     Creates a network graph of our river network data.
     Input is a Pandas DataFrame. The index should be a unique id for the node in the network
@@ -28,16 +28,16 @@ def make_river_network(df: DataFrame, terminal_node=None) -> nx.Graph:
     return G
 
 
-def calculate_strahler_stream_order(graph):
+def calculate_strahler_stream_order(graph: nx.DiGraph) -> nx.DiGraph:
     """
         Calculates the Strahler stream order for a river network that is
         represented as a NetworkX acyclic directed graph.
         Adds the attribute 'strahler_order' for nodes in the network.
 
         Arguments:
-            a Graph
+            a networkX acyclic directed Graph
         Returns:
-            a Graph
+            same Graph, with additional attribute on all nodes.
 
         """
     # Step 1: Determine upstream and downstream nodes
@@ -64,7 +64,7 @@ def calculate_strahler_stream_order(graph):
     return graph
 
 
-def calculate_shreve_stream_order(graph: nx.Graph) -> nx.Graph:
+def calculate_shreve_stream_order(graph: nx.DiGraph) -> nx.DiGraph:
     """
     Calculates the Shreve stream order for a river network that is
     represented as a NetworkX acyclic directed graph.
@@ -93,7 +93,7 @@ def calculate_shreve_stream_order(graph: nx.Graph) -> nx.Graph:
     return graph
 
 
-def calculate_num_incoming(G):
+def calculate_num_incoming(G: nx.DiGraph) -> nx.DiGraph:
     """calculates the number of upstream or incoming edges to each node
     and puts that in an attribute"""
 
@@ -104,7 +104,7 @@ def calculate_num_incoming(G):
     return G
 
 
-def insert_node(G: nx.Graph, node, comid) -> nx.Graph:
+def insert_node(G: nx.DiGraph, node, comid) -> nx.DiGraph:
     """
     Custom function to insert a new node in my flow network graph at a given location.
 
@@ -155,12 +155,13 @@ def insert_node(G: nx.Graph, node, comid) -> nx.Graph:
     return G
 
 
-def prune_node(G: nx.Graph, node) -> nx.Graph:
+def prune_node(G: nx.DiGraph, node) -> nx.DiGraph:
     """
-    Prune a node from a directed acyclic graph (DAG) and reconnect its neighbors.
+    Prunes (removes) a node from a directed acyclic graph (DAG) and reconnects
+     its upstream and downstream neighbors.
 
     Parameters:
-    DAG (networkx.DiGraph): The directed acyclic graph.
+    G (networkx.DiGraph): The directed acyclic graph.
     node (any hashable type): The node to be pruned from the graph.
 
     Returns:
@@ -184,7 +185,7 @@ def prune_node(G: nx.Graph, node) -> nx.Graph:
     return G
 
 
-def upstream_nodes(G: nx.Graph, node) -> list:
+def upstream_nodes(G: nx.DiGraph, node) -> list:
     """
     Return all upstream nodes for a given node in a directed acyclic graph
 

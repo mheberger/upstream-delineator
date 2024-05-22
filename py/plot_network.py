@@ -3,12 +3,17 @@ import graphviz
 from PIL import Image
 
 
-def draw_graph(G: nx.Graph, filename: str, vertical=False):
+def draw_graph(G: nx.DiGraph, filename: str, vertical=False):
     """
     Plots a NetworkX directed acyclic graph (dag)
     using the GraphViz library. Note that you need to install this software and it needs to be
     on the system path.
-    Code courtesy of ChatGPT
+
+    Args:
+        G: the river network directed graph.
+        filename: the filename (bare, no extension) to create
+        vertical: if True, will arrange plot from top to bottom,
+          Default is left to right.
     """
     # Initialize a new directed graph in Graphviz
     if vertical:
