@@ -13,7 +13,7 @@ from shapely.geometry import Polygon, MultiPolygon
 from shapely import wkb, ops
 
 from py.raster_plots import *
-from config2 import *
+from subbasins_config import *
 from py.util import get_largest
 
 

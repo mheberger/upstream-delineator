@@ -1,4 +1,4 @@
-"""
+r"""
 Delineation of waterhshed subbasins, using data from
 MERIT-Basins and MERIT-Hydro.
 Created by Matthew Heberger, May 2024.
@@ -27,9 +27,10 @@ import argparse
 import sys
 import numpy as np
 from shapely.geometry import Point
+import topojson
 
 # My stuff
-from config2 import *  # This file contains a bunch of variables
+from subbasins_config import *  # This file contains a bunch of variables
 from py.util import *  # This one contains a bunch of functions
 from py.graph_tools import *  # Functions for working with river network information as a Python NetworkX graph
 from py.merit_detailed import split_catchment
@@ -43,7 +44,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 def delineate(input_csv: str, output_prefix: str):
     """
     Finds the watershed for a set of outlets.
-    Make sure to set the variables in `config2.py` before running.
+    Make sure to set the variables in `subbasins_config.py` before running.
 
     Version #2, where all the points are in a single watershed,
     and we are interested in returning a set of subbasins.
@@ -342,9 +343,43 @@ def delineate(input_csv: str, output_prefix: str):
     # Now we can drop the terminal unit catchment from the rivers dataframe.
     myrivers_gdf = myrivers_gdf.drop(terminal_comid)
 
-    # EXPORT the geodata for (1) subbasins, (2) outlets, and (3) rivers
+    # CHECK FOR Null Geometries.
+    # If the user has placed one of their points very close to an existing basin outlet,
+    # we can get a null geometry. This then creates problems. So remove it.
 
+    null_nodes = subbasins_gdf.index[subbasins_gdf['unitarea'] == 0].tolist()
+    subbasins_gdf.drop(null_nodes, inplace=True)
+
+    # Remove this node from the graph
+    for node in null_nodes:
+        prune_node(G, node)
+
+    if len(null_nodes) > 0:
+        if VERBOSE: print(f"Pruned {len(null_nodes)} empty unit catchments from the river network.")
+        if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network_pruned')
+
+    null_rivers = myrivers_gdf.index[myrivers_gdf['lengthkm'] == 0].tolist()
+    myrivers_gdf.drop(null_rivers, inplace=True)
+
+    # SIMPLIFY the geodata?
+    if SIMPLIFY:
+        topo = topojson.Topology(subbasins_gdf, prequantize=False)
+        subbasins_gdf = topo.toposimplify(0.0008).to_gdf()
+        topo = topojson.Topology(myrivers_gdf, prequantize=False)
+        myrivers_gdf = topo.toposimplify(0.0008).to_gdf()
+
+    # SAVE NETWORK Graph.
+    # Before saving, add the unitarea as an attribute in the graph.
+    for node in list(G.nodes):
+        area = subbasins_gdf.at[node, 'unitarea']
+        G.nodes[node]['area'] = round(area, 1)
+
+    save_network(G, output_prefix, 'json')
+
+    # EXPORT the geodata for (1) subbasins, (2) outlets, and (3) rivers
     # (1) SUBBASINS
+    subbasins_gdf.reset_index(inplace=True)
+    subbasins_gdf.rename(columns={'index': 'comid'}, inplace=True)
     fname = f"{OUTPUT_DIR}/{output_prefix}_subbasins.{OUTPUT_EXT}"
     write_geodata(subbasins_gdf, fname)
 
@@ -359,14 +394,6 @@ def delineate(input_csv: str, output_prefix: str):
     myrivers_gdf.rename(columns={'index': 'comid'}, inplace=True)
     fname = f"{OUTPUT_DIR}/{output_prefix}_rivers.{OUTPUT_EXT}"
     write_geodata(myrivers_gdf, fname)
-
-    # SAVE NETWORK Graph.
-    # Before saving, add the unitarea as an attribute in the graph.
-    for node in list(G.nodes):
-        area = subbasins_gdf.at[node, 'unitarea']
-        G.nodes[node]['area'] = round(area, 1)
-
-    save_network(G, output_prefix, 'json')
 
     if VERBOSE: print("Ran succesfully!")
 
@@ -395,6 +422,6 @@ if __name__ == "__main__":
         _run()
     else:
         # Run directly, for convenience or during development and debugging
-        input_csv = 'outlets3.csv'
-        output_prefix = 'XXXX'
+        input_csv = 'test_inputs/outlets4.csv'
+        output_prefix = 'Ice4'
         delineate(input_csv, output_prefix)

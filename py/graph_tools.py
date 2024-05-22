@@ -185,3 +185,31 @@ def insert_node(G: nx.Graph, node, comid) -> nx.Graph:
 
     return G
 
+
+def prune_node(G: nx.Graph, node) -> nx.Graph:
+    """
+    Prune a node from a directed acyclic graph (DAG) and reconnect its neighbors.
+
+    Parameters:
+    DAG (networkx.DiGraph): The directed acyclic graph.
+    node (any hashable type): The node to be pruned from the graph.
+
+    Returns:
+    networkx.DiGraph: The DAG with the node pruned and neighbors reconnected.
+    """
+    if not G.has_node(node):
+        raise ValueError("The specified node is not in the graph.")
+
+    predecessors = list(G.predecessors(node))
+    successors = list(G.successors(node))
+
+    # Reconnect predecessors to successors
+    for pred in predecessors:
+        for succ in successors:
+            if not G.has_edge(pred, succ):
+                G.add_edge(pred, succ)
+
+    # Remove the node from the graph
+    G.remove_node(node)
+
+    return G

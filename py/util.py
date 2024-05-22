@@ -13,7 +13,7 @@ import re
 import pickle
 import warnings
 import matplotlib.pyplot as plt
-from config2 import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, RIVERS_DIR, HIGHRES_CATCHMENTS_DIR
+from subbasins_config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, RIVERS_DIR, HIGHRES_CATCHMENTS_DIR
 from numpy import random
 
 # The WGS84 projection string, used in a few places
@@ -265,7 +265,6 @@ def get_megabasin(points_gdf) -> int:
     Returns:
         the ID of the megabasin, an integer from 11 to 91
     """
-
     if VERBOSE: print("Finding out which Level 2 megabasin(s) your outlets are in")
 
     megabasins_gdf = load_megabasins()

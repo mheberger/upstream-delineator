@@ -64,3 +64,5 @@ PICKLE_DIR = 'pkl'
 # outlet is not getting snapped to a river centerline properly
 THRESHOLD_SINGLE = 500
 THRESHOLD_MULTIPLE = 5000
+
+SIMPLIFY = True
