@@ -13,7 +13,7 @@ import re
 import pickle
 import warnings
 import matplotlib.pyplot as plt
-from subbasins_config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, RIVERS_DIR, HIGHRES_CATCHMENTS_DIR
+from subbasins_config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, RIVERS_DIR, CATCHMENTS_DIR
 from numpy import random
 
 # The WGS84 projection string, used in a few places
@@ -358,7 +358,7 @@ def load_gdf(geotype: str, basin: int, high_resolution: bool) -> gpd.GeoDataFram
 
     # Open the shapefile for the basin
     if geotype == "catchments":
-        directory = HIGHRES_CATCHMENTS_DIR
+        directory = CATCHMENTS_DIR
         shapefile = f"{directory}/cat_pfaf_{basin}_MERIT_Hydro_v07_Basins_v01.shp"
     elif geotype == "rivers":
         shapefile = f"{RIVERS_DIR}/riv_pfaf_{basin}_MERIT_Hydro_v07_Basins_v01.shp"

@@ -24,24 +24,24 @@ MERIT_ACCUM_DIR = r"C:\Data\GIS\MERITHydro\accum_basins"
 VERBOSE = True
 
 # Set to True to make a bunch of plots of each watershed.
-# (Just for debugging. Slows down the script a lot.)
+# (Mostly for debugging. Slows down the script a lot.)
 PLOTS = False
+
+# Set to true to output a network diagram of the river network.
+# This is a simplified view of the flow pathways.
 NETWORK_DIAGRAMS = True
 
-# Folder where you have stored the Merit-BASINS catchment shapefiles.
+# Folder where you have stored the Merit-BASINS unit catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins
-HIGHRES_CATCHMENTS_DIR = "data/shp/merit_catchments"
-HIGHRES_CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
+CATCHMENTS_DIR = "data/shp/merit_catchments"
+CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
 
-# Location of simplified unit catchment boundaries vector data (shapefiles)
-# Download from: https://mghydro.org/watersheds/share/catchments_simplified.zip
-LOWRES_CATCHMENTS_DIR = "data/shp/catchments_simplified"
 
 # Folder where you have stored the MERIT-Basins River flowline shapefiles
 # Download from: https://www.reachhydro.org/home/params/merit-basins
 RIVERS_DIR = "C:/Data/GIS/MERITBasins/rivers"
 
-# Folder where the script will write the output GeoJSON files or shapefiles
+# Folder where the script will write the output geodata
 OUTPUT_DIR = "output"
 
 # The file extension will determine the types of geodata files the script creates.
@@ -65,4 +65,9 @@ PICKLE_DIR = 'pkl'
 THRESHOLD_SINGLE = 500
 THRESHOLD_MULTIPLE = 5000
 
+# Simplify the output geodata? This will remove some vertices
+# from the watershed boundary and river centerlines and produce smaller files.
 SIMPLIFY = True
+
+# If SIMPLIFY is True, set SIMPLIFY_TOLERANCE to a value in decimal degrees.
+SIMPLIFY_TOLERANCE = 0.0008

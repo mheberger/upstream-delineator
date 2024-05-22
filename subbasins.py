@@ -7,7 +7,7 @@ See README for detailed instructions.
 
 Quick guide:
 
-First, set parameters in the file config.py.
+First, set parameters in the file subbasins_config.py.
 
 Run it from the command line like this.
 $ python subbsins.py outlets.csv testrun
@@ -229,8 +229,6 @@ def delineate(input_csv: str, output_prefix: str):
     for node, comid in new_nodes.items():
         G = insert_node(G, node, comid)
 
-    if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network_after')
-
     # Now we have a new, accurate network topology. Now we only need to take care of the geography,
     # by splitting the polygons to find the geography (catchment polygon) for the
     # the newly inserted nodes in the river network.
@@ -310,6 +308,7 @@ def delineate(input_csv: str, output_prefix: str):
 
     # We should also remove it from our Graph representation
     G.remove_node(terminal_comid)
+    if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network_after', True)
 
     # Split the rivers data, based on the results above.
     #   FOr most unit catchments, the river will not change.
@@ -364,9 +363,9 @@ def delineate(input_csv: str, output_prefix: str):
     # SIMPLIFY the geodata?
     if SIMPLIFY:
         topo = topojson.Topology(subbasins_gdf, prequantize=False)
-        subbasins_gdf = topo.toposimplify(0.0008).to_gdf()
+        subbasins_gdf = topo.toposimplify(SIMPLIFY_TOLERANCE).to_gdf()
         topo = topojson.Topology(myrivers_gdf, prequantize=False)
-        myrivers_gdf = topo.toposimplify(0.0008).to_gdf()
+        myrivers_gdf = topo.toposimplify(SIMPLIFY_TOLERANCE).to_gdf()
 
     # SAVE NETWORK Graph.
     # Before saving, add the unitarea as an attribute in the graph.
@@ -423,5 +422,5 @@ if __name__ == "__main__":
     else:
         # Run directly, for convenience or during development and debugging
         input_csv = 'test_inputs/outlets4.csv'
-        output_prefix = 'Ice4'
+        output_prefix = 'yuba'
         delineate(input_csv, output_prefix)

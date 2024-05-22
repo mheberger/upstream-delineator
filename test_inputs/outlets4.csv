@@ -1,6 +1,6 @@
 id,lat,lng,name
-outlet,39.240007,-121.269591, "Yuba R. at Englebright Dam"
-loc1,39.292582,-121.105580, "South Yuba R. at Jones Bar"
-loc2,39.390238,-121.144144, "North Yuba R. at New Bullards Bar Reservoir"
-loc3,39.454076,-120.755510, "Middle Yuba R. at Tehama Ravine"
-loc4,39.615332,-121.051729,"Slate Creek Reservoir"
+englebright,39.240007,-121.269591, "Yuba R. at Englebright Dam"
+jones,39.292582,-121.105580, "South Yuba R. at Jones Bar"
+bullard,39.390238,-121.144144, "North Yuba R. at New Bullards Bar Reservoir"
+tehama,39.454076,-120.755510, "Middle Yuba R. at Tehama Ravine"
+slate,39.615332,-121.051729,"Slate Creek Reservoir"
