@@ -155,7 +155,7 @@ All latitude and longitude coordinates should be in decimal degrees
 Each point should fall into a different MERIT-Basins unit catchment. 
 This means that the you should not input points that are too closely spaced along a river.
 You can view MERIT-Basin catchments in GIS, or on the Global Watersheds web app: 
-[https://mghydro.com/watersheds](watersheds). On the map, at the top right, there is
+[https://mghydro.com/watersheds](https://mghydro.com/watersheds). On the map, at the top right, there is
 a basemap selector widget -- check the box to activate 'MERIT-Basins unit catchments.'
 
 ## <a name="step5">4. Update `subbasins_config.py`</a>
