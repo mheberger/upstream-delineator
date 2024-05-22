@@ -5,24 +5,28 @@ using data from [MERIT-Hydro](https://doi.org/10.1029/2019WR024873) and
 The script outputs subbasins and a river network graph representation, 
 which can be useful for watershed modeling or machine learning applications. 
 
+This script also lets you subdivide the watershed at specific locations if you provide
+additional points that fall inside the main watershed, as shown in the image below.
+
 ![Subbasins illustration](img/subbasins_map.jpg)
 
-This script also lets you subdivide the watershed at specific locations if you provide
-additional points that fall inside the main watershed. 
 
-These scripts are a heavily modified fork of
-[delineator](https://github.com/mheberger/delineator). 
+These scripts were modified from [delineator.py](https://github.com/mheberger/delineator). 
 
 
 # Outputs:
-   * Geodata layer of sub-basin polygons 
-   * Geodata layer of sub-basin outlet points 
-   * Geodata layer of river reaches 
+
+Geodata in a variety of formats -- shapefile, geopackage, GeoJSON, etc., for:
+
+   * sub-basin polygons 
+   * sub-basin outlet points 
+   * river reaches 
+
+Optionally:
+
    * A network graph representation of the river network.
 
-You can choose to output geodata in a variety of formats -- shapefile, geopackage, GeoJSON, etc.
-
-The network graph can be saved in a variety of formats -- Python NetworkX Graph object (pickle file),
+The network graph can be saved in a variety of formats -- Python NetworkX Graph object (in a pickle file),
 JSON, GML, XML, etc.
 
 
@@ -93,13 +97,13 @@ There are 61 of these basins in total. Basins are identified by a 2-digit code, 
 
 ## <a name="step1">1. Download MERIT-Hydro raster data</a>
 
-To delineate watersheds in the default "high-precision mode," you will need two sets of 
-MERIT-Hydro gridded (or raster) data: **flow accumulation** and **flow direction**. 
+You will need two sets of MERIT-Hydro gridded (or raster) data: **flow accumulation**
+and **flow direction**. 
 The authors of the MERIT-Hydro created 5-degree tiles, but this script needs seamless 
-layers that cover entire river basins. Download these data here:
+layers that cover entire river basins. You can freely download these data here:
 [https://mghydro.com/watersheds/rasters](https://mghydro.com/watersheds/rasters)
 
-Update `subbasins_config.py` to tell the script where to find these data files. 
+You will need to update `subbasins_config.py` to tell the script where to find these data files. 
 Modify these variables:
 
 - `MERIT_FDIR_DIR` (for flow direction)
@@ -108,7 +112,7 @@ Modify these variables:
 
 ## 2. <a name="step2">Download MERIT-Basins vector data</a>
 
-Download the shapefiles for unit catchments and rivers. Follow the instructions here:
+Download the shapefiles for unit catchments and river reaches. Follow the instructions here:
 [https://www.reachhydro.org/home/params/merit-basins](https://www.reachhydro.org/home/params/merit-basins)
 
 In the folder `pfaf_level_02` , download two sets of files:
@@ -122,7 +126,7 @@ depending on your region of interest.
 
 Unzip these files and save them to a folder on your hard drive. 
 Then, in `subbasins_config.py`, update the variables 
-`HIGHRES_CATCHMENTS_DIR` and `RIVERS_DIR`.
+`CATCHMENTS_DIR` and `RIVERS_DIR` to tell the script where to find these data.
 
 ## <a name="step4">3. Create a CSV file with your desired watershed outlet points</a>
 
@@ -148,7 +152,7 @@ All latitude and longitude coordinates should be in decimal degrees
 (EPSG: 4326, [https://spatialreference.org/ref/epsg/wgs-84/](https://spatialreference.org/ref/epsg/wgs-84/)).
 
 
-- The first row in the CSV file will be the main basin outlet
+- The first row in the CSV file will be the main basin outlet.
 
 - All the following points should all be contained in the first point's watershed.
 
@@ -156,7 +160,8 @@ Each point should fall into a different MERIT-Basins unit catchment.
 This means that the you should not input points that are too closely spaced along a river.
 You can view MERIT-Basin catchments in GIS, or on the Global Watersheds web app: 
 [https://mghydro.com/watersheds](https://mghydro.com/watersheds). On the map, at the top right, there is
-a basemap selector widget -- check the box to activate 'MERIT-Basins unit catchments.'
+a basemap selector widget -- check the box to activate 'MERIT-Basins unit catchments.' Zoom in to at least
+zoom level 8 in order to enable this option. 
 
 ## <a name="step5">4. Update `subbasins_config.py`</a>
 
@@ -167,20 +172,28 @@ the input data on your computer.
 ## <a name="step6">5. Run `subbasins.py` to delineate watersheds</a>
 
 Once you have downloaded the datasets listed above, and updated `subbasins_config.py`, 
-you are ready to delineate watersheds. 
+you are ready to delineate watersheds. The script takes exactly two arguments:
 
-Run it from the command line like this.
+`input_csv` - Input CSV filename, for example 'gages.csv'
+
+`output_prefix` - Output prefix, a string. The output files will start with this string. For example, 
+if you provide 'shasta', the script will produce `shasta_subbasins.shp`, `shasta_outlets.shp`, etc.
+
+Run the script from the command line like this:
 ```
 $ python subbsins.py outlets.csv testrun
 ```
 
-or with a full file path as follows on Windows or Linux:
+This assumes you have put `outlets.csv` in the same folder with the scripts, 
+which is not always convenient. You can provide a full file path as follows 
+(examples for Windows and Linux):
 ```
 $ python subbasins.py C:\Users\matt\Desktop\outlets.csv test
 $ python subbasins.py /home/files/outlets.csv test
 ```
 
-or in Python as follows:
+Alternatively, you can call the delineation routine from Python, in a script
+or via the console:
 
 ```
 >> from subbasins import delineate
@@ -189,20 +202,21 @@ or in Python as follows:
 
 ## <a name="step7">6. Review results</a>
 
-The script can output watersheds in several different geodata formats, 
+The script can output several different geodata formats, 
 as long as it is supported by `GeoPandas`. Shapefiles are popular, 
-ut I recommend **GeoPackage**, as it is a more modern and open format. 
+but I recommend **GeoPackage**, as it is a more modern and open format. 
+**Feather** is another lightweight, portable data format.
 To get a full list of available formats, follow the directions 
 [here](https://geopandas.org/en/stable/docs/user_guide/io.html#writing-spatial-data). 
 
 
 ## <a name="step8">7. Run again to fix any mistakes</a>
 
-Automated watershed delineation often makes mistakes. 
-The good news is that these errors can often be fixed by slightly moving the 
+Automated watershed delineation is often incorrect. 
+The good news is that errors can often be fixed by slightly moving the 
 location of your watershed outlets.
 
-Repeat steps 4 to 7 by creating a new CSV file, or modifying your existing file, 
+Repeat steps 3 to 6 to create a new outlets CSV file, or modifying your existing file, 
 using revised coordinates. The script will automatically overwrite existing files
 without any warning, so first make sure to back up anything you want to save.
 
@@ -240,9 +254,10 @@ For comments or questions, please contact the author: Matthew Heberger, matt@mgh
 
 To report any bugs, you can create an Issue on this GitHub page.
 
-Finally, this code is open source, so if you are motivated to make any 
+This code is open source, so if you are motivated to make any 
 modifications, additions, or bug fixes, you can fork the repository 
 and then do a pull request on GitHub. 
+
 
 # Acknowledgments
 Code developed with support from [Upstream Tech](https://www.upstream.tech/).

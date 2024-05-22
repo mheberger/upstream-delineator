@@ -437,13 +437,13 @@ def _run():
 
     # Add the arguments
     parser.add_argument('input_csv', help="Input CSV filename, for example 'gages.csv'")
-    parser.add_argument('output_ext', help="Output prefix, a string. The output files will start with this string")
+    parser.add_argument('output_prefix', help="Output prefix, a string. The output files will start with this string")
 
     # Parse the arguments
     args = parser.parse_args()
 
     # Call the main function, passing the command line arguments
-    delineate(args.input_csv, args.output_ext)
+    delineate(args.input_csv, args.output_prefix)
 
 
 if __name__ == "__main__":
@@ -452,6 +452,6 @@ if __name__ == "__main__":
         _run()
     else:
         # Run directly, for convenience or during development and debugging
-        input_csv = 'test_inputs/outlets3.csv'
-        output_prefix = 'ice3'
+        input_csv = 'test_inputs/outlets4.csv'
+        output_prefix = 'yuba'
         delineate(input_csv, output_prefix)
