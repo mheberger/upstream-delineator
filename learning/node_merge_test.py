@@ -3,7 +3,7 @@
 # The answer is no, it does not. This is basically crap.
 
 import networkx as nx
-from plot_network import draw_graph
+from py.plot_network import draw_graph
 import pickle
 
 # Assuming you have your original graph 'G' with nodes and weights

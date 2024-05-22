@@ -139,12 +139,11 @@ def split_catchment(wid: str, basin: int, lat: float, lng: float, catchment_poly
     fdir = grid.read_raster(fdir_fname, window=bounding_box, nodata=0)
 
     # Not clear if this this step was unnecessary, but it makes the plots look nicer
-    if not SIMPLIFY:
-        m, n = grid.shape
-        for i in range(0, m):
-            for j in range(0, n):
-                if int(mymask[i, j]) == 0:
-                    fdir[i, j] = 0
+    m, n = grid.shape
+    for i in range(0, m):
+        for j in range(0, n):
+            if int(mymask[i, j]) == 0:
+                fdir[i, j] = 0
 
     # Plot the mask that I created from rasterized vector polygon
     if PLOTS:

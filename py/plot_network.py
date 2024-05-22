@@ -3,7 +3,7 @@ import graphviz
 from PIL import Image
 
 
-def draw_graph(G, filename="output", vertical=False):
+def draw_graph(G: nx.Graph, filename: str, vertical=False):
     """
     Plots a NetworkX directed acyclic graph (dag)
     using the GraphViz library. Note that you need to install this software and it needs to be
@@ -34,11 +34,10 @@ def draw_graph(G, filename="output", vertical=False):
 
     # Save the graph as a file and render it
     dot.render(filename, format='png', cleanup=True)
-    print(f"Graph saved as {filename}.png")
 
     # Display the graph using PIL
-    image = Image.open(filename + ".png")
-    image.show()
+    #image = Image.open(filename + ".png")
+    #image.show()
 
 
 if __name__ == "__main__":

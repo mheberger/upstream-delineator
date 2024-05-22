@@ -24,3 +24,5 @@ Tue 5/07 1.0 Reorganizing and refactoring code.
 Tue 5/14 1.0 Developing the code for multiple points in a watershed.
 Sat 5/18 1.0 Working on the main scripts
 Mon 5/20 3.5 Working on the main scripts
+Tue 5/21 5.0 Added new features, bug fixes, checking output
+Wed 5/22 1.0 Reorganizing, cleaning up files
