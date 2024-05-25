@@ -92,3 +92,15 @@ FILL = True
 # errors in the input data, while larger holes *may* be more meaningful, reflecting
 # surface drainage patterns.)
 FILL_THRESHOLD = 100
+
+# Consolidate the sub-basins to make a larger size? If set to true, the script will
+# merge adjacent subbasins until they cannot be merged any longer without
+# (a) exceeding the threshold area (set below) or (b) messing up the network topology
+
+CONSOLIDATE = True
+THRESHOLD_AREA = 300  # in km²
+
+# MERGE tiny junction nodes? These sometimes occur around confluences, where two tributaries
+# join the mainstem close to one another. If you want to consider them joining at the same
+# location, set the length below, in km. If you don't want to do this, set it to a big number like 99999
+THRESHOLD_LENGTH = 2

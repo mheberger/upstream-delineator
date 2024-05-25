@@ -3,7 +3,15 @@ import graphviz
 from PIL import Image
 
 
-def draw_graph(G: nx.DiGraph, filename: str, vertical=False):
+def area_to_size(area, max_area):
+    if max_area is None:
+        return 10
+    else:
+        size = 0.2 + 1.2 * (area/max_area) ** 0.5
+    return size
+
+
+def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph", vertical=False):
     """
     Plots a NetworkX directed acyclic graph (dag)
     using the GraphViz library. Note that you need to install this software and it needs to be
@@ -15,11 +23,23 @@ def draw_graph(G: nx.DiGraph, filename: str, vertical=False):
         vertical: if True, will arrange plot from top to bottom,
           Default is left to right.
     """
+
+    # Since we are going to size the nodes by area, find the largest so we can scale appropriately
+    max_area_node = max(G.nodes, key=lambda node: G.nodes[node].get('area', 0))
+    try:
+        max_area = G.nodes[max_area_node]['area']
+    except:
+        max_area = None
+
     # Initialize a new directed graph in Graphviz
     if vertical:
         dot = graphviz.Digraph()
     else:
         dot = graphviz.Digraph(graph_attr={'rankdir': 'LR'})
+
+    dot.graph_attr['label'] = title
+    dot.graph_attr['labelloc'] = 't'  # 't' for top, 'b' for bottom, 'c' for center
+    dot.graph_attr['fontsize'] = '20'  # Set the font size for the title
 
     # Add nodes with distance attributes as labels
     for node in G.nodes():
@@ -27,6 +47,13 @@ def draw_graph(G: nx.DiGraph, filename: str, vertical=False):
             label = str(node)[-4:]
         else:
             label = f"{node}"
+
+        if 'area' in G.nodes[node]:
+            area = round(G.nodes[node]['area'])
+            label = f"{label}\n{area}"
+            size = area_to_size(G.nodes[node]['area'], max_area)
+            size = str(round(size, 1))
+            dot.node(str(node), width=size, height=size, fixedsize='true')
 
         if G.nodes[node].get('new'):
             dot.node(str(node), label=label, style='filled', fillcolor='lightblue', fontname='Arial')
@@ -41,8 +68,8 @@ def draw_graph(G: nx.DiGraph, filename: str, vertical=False):
     dot.render(filename, format='png', cleanup=True)
 
     # Display the graph using PIL
-    #image = Image.open(filename + ".png")
-    #image.show()
+    image = Image.open(filename + ".png")
+    image.show()
 
 
 if __name__ == "__main__":

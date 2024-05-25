@@ -19,11 +19,10 @@ def make_river_network(df: DataFrame, terminal_node=None) -> nx.DiGraph:
     for node_id, nextdown in df['nextdown'].items():
         # Add node with comid as node ID
         G.add_node(node_id)
+        G.nodes[node_id]['area'] = df.at[node_id, 'unitarea']
         # Add edge from comid to nextdown
         if nextdown > 0 and node_id != terminal_node:
             G.add_edge(node_id, nextdown)
-
-    # Simple way to do make sure the terminal node is not added?
 
     return G
 

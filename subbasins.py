@@ -29,6 +29,7 @@ import numpy as np
 from shapely.geometry import Point
 import topojson
 
+from consolidate import consolidate_network
 # My stuff
 from subbasins_config import *  # This file contains a bunch of variables
 from py.util import *  # This one contains a bunch of functions
@@ -303,7 +304,7 @@ def delineate(input_csv: str, output_prefix: str):
 
     # We should also remove it from our Graph representation
     G.remove_node(terminal_comid)
-    if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network_after', True)
+    if NETWORK_DIAGRAMS: draw_graph(G, filename='plots/{output_prefix}_network_after', vertical=False)
 
     # Split the rivers data, based on the results above.
     #   FOr most unit catchments, the river will not change.
@@ -366,37 +367,75 @@ def delineate(input_csv: str, output_prefix: str):
 
     # SAVE NETWORK Graph.
     # Before saving, add the unitarea as an attribute in the graph.
+    # Add the river reach length also.
     for node in list(G.nodes):
         area = subbasins_gdf.at[node, 'unitarea']
         G.nodes[node]['area'] = round(area, 1)
+        try:
+            length = myrivers_gdf.at[node, 'lengthkm']
+        except:
+            length = 0
+        G.nodes[node]['length'] = round(length, 1)
 
-    save_network(G, output_prefix, 'json')
+    # SIMPLIFY the river network by consolidating adjacent nodes.
+    if CONSOLIDATE:
+        MERGES = {}
+        G, MERGES = consolidate_network(G, MERGES, threshold_area=THRESHOLD_AREA, threshold_length=THRESHOLD_LENGTH)
+        if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network_final')
+        subbasins_gdf['target'] = subbasins_gdf.index
 
+        # Dissolve unit catchments based on information in MERGES.
+        for node, target in MERGES.items():
+            subbasins_gdf.at[node, 'target'] = target
+
+        agg = {
+            'unitarea': 'sum',
+            'lat': 'first',
+            'lng': 'first',
+
+        }
+
+        subbasins_gdf = subbasins_gdf.dissolve(by="target", aggfunc=agg)
+        subbasins_gdf.geometry = subbasins_gdf.geometry.apply(lambda p: buffer(p))
+        subbasins_gdf.geometry = subbasins_gdf.geometry.apply(lambda p: close_holes(p, 0))
+        subbasins_gdf.reset_index(inplace=True)
+        subbasins_gdf.rename(columns={'target': 'comid'}, inplace=True)
+
+    # TODO: Need more sophisticated handling of the lat, lng; after dissolve they are not correct.
+    #  Create and update field `nextdown` based on information in the graph.
+
+    # Finally, write the results to disk
+    write_outputs(G, myrivers_gdf, new_nodes, output_prefix, subbasins_gdf)
+
+    if VERBOSE: print("Ran succesfully!")
+
+
+def write_outputs(G, myrivers_gdf, new_nodes, output_prefix, subbasins_gdf):
+    save_network(G, output_prefix, 'pkl')
     # EXPORT the geodata for (1) subbasins, (2) outlets, and (3) rivers
     # (1) SUBBASINS
-    subbasins_gdf.reset_index(inplace=True)
-    subbasins_gdf.rename(columns={'index': 'comid'}, inplace=True)
-    subbasins_gdf.rename(columns={'COMID': 'comid'}, inplace=True)
-
+    #subbasins_gdf.reset_index(inplace=True)
+    #subbasins_gdf.rename(columns={'index': 'comid'}, inplace=True)
+    #subbasins_gdf.rename(columns={'COMID': 'comid'}, inplace=True)
     fname = f"{OUTPUT_DIR}/{output_prefix}_subbasins.{OUTPUT_EXT}"
     write_geodata(subbasins_gdf, fname)
-
     # (2) Get the OUTLETS data and write it to disk
     outlets_gdf = subbasins_gdf.copy()
     outlets_gdf['geometry'] = outlets_gdf.apply(lambda row: Point(row['lng'], row['lat']), axis=1)
     fname = f"{OUTPUT_DIR}/{output_prefix}_outlets.{OUTPUT_EXT}"
     write_geodata(outlets_gdf, fname)
-
     # (3) Write the RIVERS data to disk.
     myrivers_gdf.reset_index(inplace=True)
     myrivers_gdf.rename(columns={'index': 'comid'}, inplace=True)
     fname = f"{OUTPUT_DIR}/{output_prefix}_rivers.{OUTPUT_EXT}"
     write_geodata(myrivers_gdf, fname)
-
     # Finally, return the larger watersheds for each outlet point, if desired
     if WATERSHEDS:
         if VERBOSE: print(f"Creating watersheds for {len(new_nodes)} outlets.")
-        subbasins_gdf.set_index('comid', inplace=True)
+        try:  # TODO
+            subbasins_gdf.set_index('comid', inplace=True)
+        except:
+            pass
 
         if FILL:
             PIXEL_AREA = 0.000000695  # Constant for the area of a single pixel in MERIT-Hydro, in decimal degrees
@@ -410,6 +449,7 @@ def delineate(input_csv: str, output_prefix: str):
             if len(upnodes) == 1:
                 watershed_gdf = mysubs_gdf
             else:
+                mysubs_gdf.geometry = mysubs_gdf.geometry.apply(lambda p: buffer(p))
                 watershed_gs = dissolve_geopandas(mysubs_gdf)
                 watershed_gdf = gpd.GeoDataFrame(watershed_gs, columns=['geometry'])
                 watershed_gdf['id'] = node
@@ -419,8 +459,6 @@ def delineate(input_csv: str, output_prefix: str):
 
             fname = f"{OUTPUT_DIR}/wshed_{node}.{OUTPUT_EXT}"
             write_geodata(watershed_gdf, fname)
-
-    if VERBOSE: print("Ran succesfully!")
 
 
 def _run():

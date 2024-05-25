@@ -68,7 +68,7 @@ def close_holes(poly: Polygon or MultiPolygon, area_max: float) -> Polygon or Mu
     elif isinstance(poly, MultiPolygon):
         # Handle MultiPolygon case
         result_polygons = []
-        for sub_poly in poly:
+        for sub_poly in poly.geoms:
             new_sub_poly = close_holes(sub_poly, area_max)
             result_polygons.append(new_sub_poly)
         return MultiPolygon(result_polygons)
