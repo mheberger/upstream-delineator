@@ -173,19 +173,12 @@ def delineate(input_csv: str, output_prefix: str):
     if problemFound:
         raise Exception("One or more points not in watershed. Please check your inputs and try again.")
 
-    # Next, check that we are not trying to subdivide a single unit catchment more than once.
+    # Next, check whether there are any unit catchments with more than one point in them.from
+    # If so, this requires special handling.
     comids = gages_joined_gdf['COMID'].tolist()
 
-    if not has_unique_elements(comids):
-        print("Problem: More than one point falls in each unit catchment. "
-              "This script is not currently set up to handle this")
-
-        # Get a list of the offending points
-        repeated_comids = find_repeated_elements(comids)
-        for comid in repeated_comids:
-            ids_rows = gages_joined_gdf[gages_joined_gdf['comid'] == comid, 'id']
-            ids_list = ids_rows.tolist()
-            print(f"The following gages are in unit catchment {comid}: {', '.join(ids_list)}")
+   # Get a list of the offending points
+    repeated_comids = find_repeats_with_frequency(comids)
 
     # Next, we need to split every subcatchment that contains an outlet point.
     # First, we will create a DataFrame with the subcatchment data.
@@ -247,7 +240,6 @@ def delineate(input_csv: str, output_prefix: str):
     # Append the column `type` (to hold 'leaf' or 'stem')
     # This will be important later when we squash and simplify the river network,
     # because we MUST NOT remove these user-defined nodes!
-    # TODO: Consider making this just 'new' ?
     subbasins_gdf['type'] = ''
 
     # Let's update the field `nextdown` by iterating over the rows and getting the data from the GRAPH.
@@ -265,7 +257,10 @@ def delineate(input_csv: str, output_prefix: str):
             node_type = ''
         subbasins_gdf.at[index, 'type'] = node_type
 
+    new_outlets = {}
     # Next, run the split_catchment() routine to find the geometry of the new nodes!
+    node_list = list(new_nodes.keys())
+
     for node, comid in new_nodes.items():
         lat = gages_joined_gdf.at[node, 'lat']
         lng = gages_joined_gdf.at[node, 'lng']
@@ -279,10 +274,7 @@ def delineate(input_csv: str, output_prefix: str):
         # Assign the split polygon as the geometry of the new node.
         #  This is the subcatchment polygon upstream of the user-defined outlet.
         subbasins_gdf.at[node, 'geometry'] = new_poly
-
-        # Calculate the area of the new unit catchment and insert value into GeoDataFrame
-        area = calc_area(new_poly)
-        subbasins_gdf.at[node, 'unitarea'] = round(area, 1)
+        new_outlets[node] = (lat_snap, lng_snap)
 
         # Now SUBTRACT the new polygon from the target unit catchments polygon
         # and update the geometry of the unit catchment `comid`, as we have removed some of its area.
@@ -295,6 +287,29 @@ def delineate(input_csv: str, output_prefix: str):
         # Update the area of the clipped unit catchment and insert value into GeoDataFrame
         area = calc_area(cleaned_poly)
         subbasins_gdf.at[comid, 'unitarea'] = round(area, 1)
+
+        # If there were other points in this same unit catchment, we need to update the
+        # entry in table `gages_joined_gdf` in the column `COMID` by doing a new spatial join,
+        # because we just split the polygon and we need to know which part the point(s) are now in.
+        if comid in repeated_comids.keys():
+            repeated_comids = decrement_repeats_dict(repeated_comids, comid)
+            # Find all the gages that fall in this
+            rows = gages_joined_gdf[gages_joined_gdf['COMID'] == comid]
+            # But we don't need to do it for rows we have already processed
+            node_list.remove(node)
+            mask = rows.index.isin(node_list)
+            rows = rows.loc[mask]
+            rows.reset_index(inplace=True)
+            subbasins_temp = subbasins_gdf.reset_index()
+            rows_overlay = gpd.overlay(rows, subbasins_temp, how="intersection")
+            rows_overlay.set_index('id', inplace=True)
+            for id, row in rows_overlay.iterrows():
+                comid_new = row['COMID_2']
+                #gages_joined_gdf.at[id, 'COMID'] = comid_new
+                new_nodes[id] = comid_new
+
+
+
 
     if PLOTS: plot_basins(subbasins_gdf, points_gdf, 'after')
 
@@ -313,8 +328,9 @@ def delineate(input_csv: str, output_prefix: str):
 
     # Drop all columns except a couple that we want to keep. Why? Because after splitting the river reach segments,
     #  this data is not going to be accurate anymore.
-    columns_to_keep = ['lengthkm', 'geometry']
-    myrivers_gdf = myrivers_gdf[columns_to_keep]
+    # TODO: reinstate this feature if I opt for more sophisticated handling of river polylines.
+    #columns_to_keep = ['lengthkm', 'geometry', 'sorder']
+    #myrivers_gdf = myrivers_gdf[columns_to_keep]
 
     # First, insert a copy of the river reach into the new nodes we inserted.
     for node, comid in new_nodes.items():
@@ -390,9 +406,8 @@ def delineate(input_csv: str, output_prefix: str):
 
         agg = {
             'unitarea': 'sum',
-            'lat': 'first',
-            'lng': 'first',
-
+            'lat': 'max',
+            'lng': 'max',
         }
 
         subbasins_gdf = subbasins_gdf.dissolve(by="target", aggfunc=agg)
@@ -401,8 +416,37 @@ def delineate(input_csv: str, output_prefix: str):
         subbasins_gdf.reset_index(inplace=True)
         subbasins_gdf.rename(columns={'target': 'comid'}, inplace=True)
 
-    # TODO: Need more sophisticated handling of the lat, lng; after dissolve they are not correct.
-    #  Create and update field `nextdown` based on information in the graph.
+    # Update lat, lng because GeoPandas dissolve is not able to handle them correctly
+    subbasins_gdf.set_index('comid', inplace=True)
+
+    # Add column `nextdownid` and the orders based on data in the graph
+    subbasins_gdf['nextdown'] = 0
+    for idx in subbasins_gdf.index:
+        try:
+            nextdown = list(G.successors(idx))[0]
+        except:
+            nextdown = 0
+        subbasins_gdf.at[idx, 'nextdown'] = nextdown
+
+        subbasins_gdf.at[idx, 'strahler_order'] = G.nodes[idx]['strahler_order']
+        subbasins_gdf.at[idx, 'shreve_order'] = G.nodes[idx]['shreve_order']
+
+        if idx in rivers_gdf.index:
+            subbasins_gdf.at[idx, 'lat'] = rivers_gdf.at[idx, 'lat']
+            subbasins_gdf.at[idx, 'lng'] = rivers_gdf.at[idx, 'lng']
+            subbasins_gdf.at[idx, 'custom'] = False
+
+        if idx in new_outlets.keys():
+            subbasins_gdf.at[idx, 'lat'] = new_outlets[idx][0]
+            subbasins_gdf.at[idx, 'lng'] = new_outlets[idx][1]
+            subbasins_gdf.at[idx, 'custom'] = True
+
+    subbasins_gdf.reset_index(inplace=True)
+
+    # round all the areas to one decimal
+    subbasins_gdf['unitarea'] = subbasins_gdf['unitarea'].round(1)
+    subbasins_gdf['lat'] = subbasins_gdf['lat'].round(4)
+    subbasins_gdf['lng'] = subbasins_gdf['lng'].round(4)
 
     # Finally, write the results to disk
     write_outputs(G, myrivers_gdf, new_nodes, output_prefix, subbasins_gdf)
@@ -432,7 +476,7 @@ def write_outputs(G, myrivers_gdf, new_nodes, output_prefix, subbasins_gdf):
     # Finally, return the larger watersheds for each outlet point, if desired
     if WATERSHEDS:
         if VERBOSE: print(f"Creating watersheds for {len(new_nodes)} outlets.")
-        try:  # TODO
+        try:  # TODO: Figure out why this is here and if it is still needed?
             subbasins_gdf.set_index('comid', inplace=True)
         except:
             pass
@@ -490,6 +534,6 @@ if __name__ == "__main__":
         _run()
     else:
         # Run directly, for convenience or during development and debugging
-        input_csv = 'test_inputs/outlets4.csv'
-        output_prefix = 'yuba'
+        input_csv = 'test_inputs/outlets1.csv'
+        output_prefix = 'ice1'
         delineate(input_csv, output_prefix)

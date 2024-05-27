@@ -32,7 +32,7 @@ PLOTS = False
 # IMPORTANT: For this to work, you need to have GraphViz installed on your computer.
 #  (Not just the graphviz Python library, which lets you access its functions.)
 #  Download installers here: https://graphviz.org/download/
-NETWORK_DIAGRAMS = True
+NETWORK_DIAGRAMS = False
 
 # Folder where you have stored the Merit-BASINS unit catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins
@@ -100,7 +100,8 @@ FILL_THRESHOLD = 100
 CONSOLIDATE = True
 THRESHOLD_AREA = 300  # in km²
 
-# MERGE tiny junction nodes? These sometimes occur around confluences, where two tributaries
+# MERGE tiny junction nodes? Only activated when CONSOLIDATE == True.
+# These sometimes occur around confluences, where two tributaries
 # join the mainstem close to one another. If you want to consider them joining at the same
 # location, set the length below, in km. If you don't want to do this, set it to a big number like 99999
 THRESHOLD_LENGTH = 2

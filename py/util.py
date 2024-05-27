@@ -2,7 +2,7 @@
 import json
 import os
 from functools import partial
-
+from collections import Counter
 import networkx
 import pyproj
 import shapely
@@ -99,6 +99,36 @@ def find_repeated_elements(lst: list) -> list:
         else:
             seen.add(elem)
     return list(duplicates)
+
+
+def find_repeats_with_frequency(lst: list) -> dict:
+    r"""
+    Finds repeated elements in a list with their frequency
+    > lst = list('collections')
+    ['c', 'o', 'l', 'l', 'e', 'c', 't', 'i', 'o', 'n', 's']
+    > find_repeats_with_frequency(lst)
+    {'c': 2, 'o': 2, 'l': 2}
+    """
+    # Count the elements in the list
+    element_count = Counter(lst)
+
+    # Filter elements that are repeated
+    repeated_elements = {element: count for element, count in element_count.items() if count > 1}
+    return repeated_elements
+
+
+def decrement_repeats_dict(dictionary: dict, key) -> dict:
+    """
+    Works with the dictionary of repeats with frequency created above.
+    Decrements an entry based on its key. Each time it is called,
+    the value decreases by one. When the value gets to one, the entry is removed
+    (because it is no longer a duplicate or repeated entry!)
+    """
+    if key in dictionary:
+        dictionary[key] -= 1
+        if dictionary[key] == 1:
+            del dictionary[key]
+    return dictionary
 
 
 def mround(match):
@@ -265,9 +295,7 @@ def get_megabasin(points_gdf) -> int:
     Returns:
         the ID of the megabasin, an integer from 11 to 91
     """
-    if VERBOSE: print("Finding out which Level 2 megabasin(s) your outlets are in")
-    return 77
-
+    if VERBOSE: print("Finding out which Pfafstetter Level 2 'megabasin' your outlets are in")
     megabasins_gdf = load_megabasins()
 
     # Overlay the gage points on the Level 2 Basins polygons to find out which

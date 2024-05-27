@@ -5,6 +5,7 @@ import networkx as nx
 from py.plot_network import draw_graph
 from py.graph_tools import *
 
+# Set to True to draw a bunch of network graphs. Mostly for debugging.
 DRAW = False
 
 
@@ -32,6 +33,7 @@ def update_merges(MERGES, node, target):
 
     return MERGES
 
+
 def step1(G: nx.DiGraph, threshold_area: int or float, MERGES: dict):
     # Step #1, merge "leaves", or unit catchments with order = 1.
     leaves = [n for n, attr in G.nodes(data=True) if attr.get('shreve_order') == 1 and 'type' not in attr]
@@ -44,7 +46,6 @@ def step1(G: nx.DiGraph, threshold_area: int or float, MERGES: dict):
                 if 'type' not in G.nodes[neighbor] and G.nodes[neighbor]['shreve_order'] == 1:
                     merged_area = G.nodes[leaf]['area'] + G.nodes[neighbor]['area']
                     if merged_area < threshold_area:
-                        print(f"Merging node {neighbor} with {leaf}")
                         G.nodes[leaf]['area'] = merged_area
                         G.remove_node(neighbor)
                         # This step is essential; we are tracking merges, but
@@ -58,7 +59,7 @@ def step1(G: nx.DiGraph, threshold_area: int or float, MERGES: dict):
 
 def step2(G: nx.DiGraph, threshold_area: int or float, MERGES: dict):
     """
-    Step #2, merge "stems", these are nodes that have 0 or 1 incoming edges.
+    Step #2, merge "stems", these are nodes that have exactly 1 incoming edges
     If merging it with its downstream neighbor means the merged node has a size
     below the threshold, go ahead and merge it!
 
@@ -69,7 +70,6 @@ def step2(G: nx.DiGraph, threshold_area: int or float, MERGES: dict):
             successor = list(G.successors(stem))[0]
             merged_area = G.nodes[stem]['area'] + G.nodes[successor]['area']
             if merged_area < threshold_area:
-                print(f"Merging node {successor} with {stem}")
                 predecessor = list(G.predecessors(stem))
                 G.nodes[successor]['area'] = merged_area
                 if predecessor:
@@ -180,6 +180,6 @@ if __name__ == "__main__":
     G = pickle.load(open(fname, "rb"))
     MERGES = {}
     # Set a threshold for merging (e.g., 100 for the sum of areas)
-    threshold_area = 100
+    threshold_area = 300
     threshold_length = 2
     G, MERGES = consolidate_network(G, MERGES, threshold_area=100, threshold_length=2)
