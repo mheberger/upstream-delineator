@@ -32,7 +32,7 @@ PLOTS = False
 # IMPORTANT: For this to work, you need to have GraphViz installed on your computer.
 #  (Not just the graphviz Python library, which lets you access its functions.)
 #  Download installers here: https://graphviz.org/download/
-NETWORK_DIAGRAMS = False
+NETWORK_DIAGRAMS = True
 
 # Folder where you have stored the Merit-BASINS unit catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins
@@ -70,7 +70,7 @@ THRESHOLD_MULTIPLE = 5000
 
 # Simplify the output geodata? This will remove some vertices
 # from the watershed boundary and river centerlines and produce smaller files.
-SIMPLIFY = True
+SIMPLIFY = False
 
 # If SIMPLIFY is True, set SIMPLIFY_TOLERANCE to a value in decimal degrees.
 SIMPLIFY_TOLERANCE = 0.0008

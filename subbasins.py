@@ -89,69 +89,53 @@ def delineate(input_csv: str, output_prefix: str):
         if up4 != 0:
             addnode(B, up4)
 
-    # Make sure the user folders from `config.py` exist. If not create them.
+    # Make sure the user folders from `config.py` exist (for output & plots). If not create them.
     make_folders()
-
-    # Check that the CSV file is there
-    if not os.path.isfile(input_csv):
-        raise Exception(f"Could not find your outlets file at: {input_csv}")
 
     # Read the outlet points CSV file and put the data into a Pandas DataFrame
     # (I call the outlet points gages, because I usually in delineated watersheds at streamflow gages)
-    if VERBOSE: print(f"Reading your outlets data in: {input_csv}")
-    gages_df = pd.read_csv(input_csv, header=0, dtype={'id': 'str', 'lat': 'float', 'lng': 'float'})
+    gages_gdf = make_gages_gdf(input_csv)
+    num_gages = len(gages_gdf)
 
-    # Check that the CSV file includes at a minimum: id, lat, lng and that all values are appropriate
-    validate(gages_df)
+    # Get the megabasin(s) in which the points are located (they need to all be in the same megabasin).
+    megabasin = get_megabasin(gages_gdf)
 
-    # Create fields for the "snapped" points, and the distance from the input coordinates
-    gages_df['lat_snap'] = np.nan
-    gages_df['lng_snap'] = np.nan
-    gages_df['snap_dist'] = 0
-
-    # Convert gages_df to a GeoPandas GeoDataFrame (adds geography, lets us do geo. operations)
-    coordinates = [Point(xy) for xy in zip(gages_df['lng'], gages_df['lat'])]
-    points_gdf = gpd.GeoDataFrame(gages_df, crs=PROJ_WGS84, geometry=coordinates)
-
-    # Get the megabasin(s) of the points
-    megabasin = get_megabasin(points_gdf)
-
-    # Now add fields to gages_df so we can reuse it to create a table to output to CSV
-    gages_df['area_calc'] = 0
-    gages_df['result'] = "failed"
-    num_gages = len(gages_df)
-
-    # Dict failed_dict: key = id, value = string, explanation of failure
-    failed_dict = {}
-
-    if VERBOSE: print('Reading data table for unit catchments in basin %s' % megabasin)
+    if VERBOSE:
+        print('Reading data table for unit catchments in basin %s' % megabasin)
     catchments_gdf = load_gdf("catchments", megabasin, True)
 
-    # The network data is in the RIVERS file rather than the CATCHMENTS file
-    # (this is just how the MeritBASIS authors did it)
+    # The _network_ data is in the RIVERS file rather than the CATCHMENTS file
+    # (this is just how the MERIT-Basins authors did it)
     if VERBOSE: print('Reading data table for rivers in basin %s' % megabasin)
     rivers_gdf = load_gdf("rivers", megabasin, True)
     rivers_gdf.set_index('COMID', inplace=True)
+    # We wish to report the outlet point for each subbasin.
+    # We can get this information from the river polylines.
+    rivers_gdf['end_point'] = rivers_gdf['geometry'].apply(lambda x: x.coords[0])
+    rivers_gdf['lng'] = rivers_gdf['end_point'].apply(lambda x: x[0])
+    rivers_gdf['lat'] = rivers_gdf['end_point'].apply(lambda x: x[1])
 
     # Perform a Spatial join on gages (points) and the unit catchments (polygons)
     # to find the corresponding unit catchment for each gage
     # Adds the fields COMID and unitarea
     if VERBOSE: print(f"Performing spatial join on {num_gages} outlet points in basin #{megabasin}")
-    gages_joined_gdf = gpd.overlay(points_gdf, catchments_gdf, how="intersection")
+    gages_list = gages_gdf['id'].tolist()  # Get the list before doing the join.
+    gages_gdf = gpd.overlay(gages_gdf, catchments_gdf, how="intersection")
+    gages_gdf.set_index('id', inplace=True)
+    #gages_gdf.drop(columns=['unitarea'], inplace=True)
 
-    # For any gages for which we could not find a unit catchment, add them to Dict failed_dict
-    gages_matched_list = gages_joined_gdf['id'].tolist()
-    gage_basin_ids = gages_df['id'].tolist()
-    for wid in gage_basin_ids:
-        if wid not in gages_matched_list:
-            failed_dict[wid] = f"Could not assign to a unit catchment in Level 2 basin #{megabasin}"
+    # For any gages for which we could not find a unit catchment, add issue a warning
+    # Basically checking which rows do not appear after doing the overlay
+    gages_matched_list = gages_gdf.index.tolist()
+    for id in gages_list:
+        if id not in gages_matched_list:
+            raise Warning(f"Could not assign to a unit catchment to gage with id {id}")
 
     # First, let us find the set of unit catchments upstream of the outlet.
-    # Let wid be the watershed ID. Get the lat, lng coords of the gage.
-    terminal_node_id = gages_joined_gdf['id'].iloc[0]
+    terminal_node_id = gages_gdf.index[0]
 
     # The terminal comid is the unit catchment that contains (overlaps) the outlet point
-    terminal_comid = gages_joined_gdf['COMID'].iloc[0]
+    terminal_comid = gages_gdf['COMID'].iloc[0]
 
     # Let B be the list of unit catchments (and river reaches) that are in the basin
     B = []
@@ -160,208 +144,168 @@ def delineate(input_csv: str, output_prefix: str):
     addnode(B, terminal_comid)
 
     # Next, check that all the other points provided by the user are
-    # in this set; otherwise, it means they are not upstream.
-    n = len(gages_joined_gdf)
-    problemFound = False
-    for i in range(0, n):
-        id = gages_joined_gdf.at[i, 'id']
-        comid = gages_joined_gdf.at[i, 'COMID']
+    # fall in unit catchments that are in this set. Otherwise, it means they are not upstream
+    # of the outlet, and therefore we cannot process them to get expected results.
+    gage_list = gages_gdf.index.tolist()
+    for gage in gage_list:
+        comid = gages_gdf.at[gage, 'COMID']
         if comid not in B:
-            print(f"Problem: Point with id = {id} is in the watershed of the first point.")
-            problemFound = True
+            raise Exception(f"The point with id = {id} is not contained in the watershed of the first point.")
+            gages_gdf.drop(gage, inplace=True)
 
-    if problemFound:
-        raise Exception("One or more points not in watershed. Please check your inputs and try again.")
-
-    # Next, check whether there are any unit catchments with more than one point in them.from
-    # If so, this requires special handling.
-    comids = gages_joined_gdf['COMID'].tolist()
-
-   # Get a list of the offending points
-    repeated_comids = find_repeats_with_frequency(comids)
-
-    # Next, we need to split every subcatchment that contains an outlet point.
-    # First, we will create a DataFrame with the subcatchment data.
+    # subbasins_gdf is the set of unit catchments in our watershed. This will ultimately become our output
     catchments_gdf.set_index('COMID', inplace=True)
     subbasins_gdf = catchments_gdf.loc[B]
-
-    if PLOTS: plot_basins(subbasins_gdf, points_gdf, 'before')
-
-    # We are going to add a new subbasin for each outlet point!
-    # This info is in the rivers dataframe, geom field. It is the *START* point (!)
-    rivers_gdf['end_point'] = rivers_gdf['geometry'].apply(lambda x: x.coords[0])
-    rivers_gdf['lng'] = rivers_gdf['end_point'].apply(lambda x: x[0])
-    rivers_gdf['lat'] = rivers_gdf['end_point'].apply(lambda x: x[1])
-
-    # Drop the 'end_point' column as it's no longer needed
-    rivers_gdf = rivers_gdf.drop(columns=['end_point'])
-
-    # Join the GeoDataFrames on their indices
+    # Add lat, lng, and NextDownID to subbasins_gdf.
     subbasins_gdf = subbasins_gdf.join(rivers_gdf[['lat', 'lng', 'NextDownID']])
-
-    # Re-name a field for my convenience, and make sure it is an integer
+    # Re-name the NextDownID field, and make sure it is an integer
     subbasins_gdf.rename(columns={'NextDownID': 'nextdown'}, inplace=True)
     subbasins_gdf['nextdown'] = subbasins_gdf['nextdown'].astype(int)
 
-    # The next steps are easier to figure out using graphs.
-    # We are going to insert nodes.
-    G = make_river_network(subbasins_gdf, terminal_comid)
+    if PLOTS: plot_basins(subbasins_gdf, gages_gdf, 'before')
 
-    G = calculate_strahler_stream_order(G)
-    if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network_before')
+    # Iterate over the gages, and find the split polygon for each of them.
+    # For now, we are going to put the split polygon geometry into a field in gages_gdf
+    gages_gdf['polygon'] = None
+    gages_gdf['polygon_area'] = 0
 
-    # Create a dictionary of the new nodes to add : the comid that we're inserting them into!
-    gages_joined_gdf.set_index('id', inplace=True)
-    new_nodes = gages_joined_gdf['COMID'].to_dict()
-
-    # Insert the new nodes into the flow network.
-    for node, comid in new_nodes.items():
-        G = insert_node(G, node, comid)
-
-    # Now we have a new, accurate network topology. Now we only need to take care of the geography,
-    # by splitting the polygons to find the geography (catchment polygon) for the
-    # the newly inserted nodes in the river network.
-
-    # First, we can insert the new nodes into our subbasins GeoDataFrame,
-    # and update the topology data (column `nextdown`) based on the Graph.
-    G = calculate_strahler_stream_order(G)
-    G = calculate_shreve_stream_order(G)
-
-    # First insert the new nodes
-    for node, comid in new_nodes.items():
-        lat = gages_joined_gdf.at[node, 'lat']
-        lng = gages_joined_gdf.at[node, 'lng']
-        subbasins_gdf.loc[node] = [None, None, lat, lng, int(comid)]
-
-    # Kind of hackish, but coerce the field nextdown back to integer type
-    # to fix the problem where the comids were being turned into floats
-    subbasins_gdf['nextdown'] = subbasins_gdf['nextdown'].astype(int)
-
-    # Append the column `type` (to hold 'leaf' or 'stem')
-    # This will be important later when we squash and simplify the river network,
-    # because we MUST NOT remove these user-defined nodes!
-    subbasins_gdf['type'] = ''
-
-    # Let's update the field `nextdown` by iterating over the rows and getting the data from the GRAPH.
-    for index in subbasins_gdf.index:
-        try:
-            nextdown = list(G.out_edges(index))[0][1]
-            subbasins_gdf.at[index, 'nextdown'] = nextdown
-        except IndexError:
-            subbasins_gdf.at[index, 'nextdown'] = None
-
-        # Add whether it is a leaf or a stem
-        try:
-            node_type = G.nodes[index]['type']
-        except KeyError:
-            node_type = ''
-        subbasins_gdf.at[index, 'type'] = node_type
-
-    new_outlets = {}
-    # Next, run the split_catchment() routine to find the geometry of the new nodes!
-    node_list = list(new_nodes.keys())
-
-    for node, comid in new_nodes.items():
-        lat = gages_joined_gdf.at[node, 'lat']
-        lng = gages_joined_gdf.at[node, 'lng']
+    for gage_id in gages_gdf.index:
+        comid = gages_gdf.at[gage_id, 'COMID']
+        lat = gages_gdf.at[gage_id, 'lat']
+        lng = gages_gdf.at[gage_id, 'lng']
         catchment_poly = subbasins_gdf.loc[comid, 'geometry']
-        node_type = subbasins_gdf.loc[node, 'type']
-        isLeaf = (node_type == 'leaf')
+        # TODO: Determine if this is a good substitute for isLeaf.
+        uparea = rivers_gdf.at[comid, 'uparea']
+        isLeaf = (uparea < 50)
 
         # Split catchment routine
-        new_poly, lat_snap, lng_snap = split_catchment(node, megabasin, lat, lng, catchment_poly, isLeaf)
+        new_poly, lat_snap, lng_snap = split_catchment(gage_id, megabasin, lat, lng, catchment_poly, isLeaf)
+        gages_gdf.at[gage_id, 'polygon'] = new_poly
+        gages_gdf.at[gage_id, 'lat_snap'] = lat_snap
+        gages_gdf.at[gage_id, 'lng_snap'] = lng_snap
 
-        # Assign the split polygon as the geometry of the new node.
-        #  This is the subcatchment polygon upstream of the user-defined outlet.
-        subbasins_gdf.at[node, 'geometry'] = new_poly
-        new_outlets[node] = (lat_snap, lng_snap)
+        # Find the area of the clipped unit catchment and insert value into GeoDataFrame
+        area = calc_area(new_poly)
+        gages_gdf.at[gage_id, 'polygon_area'] = round(area, 1)
 
-        # Now SUBTRACT the new polygon from the target unit catchments polygon
-        # and update the geometry of the unit catchment `comid`, as we have removed some of its area.
-        # shapely's `difference()` method works like a cookie cutter
-        target_polygon = subbasins_gdf.at[comid, 'geometry']
-        revised_poly = target_polygon.difference(new_poly)
-        cleaned_poly = fix_polygon(revised_poly)
-        subbasins_gdf.at[comid, 'geometry'] = cleaned_poly
+    # TODO
+    # Now, handle the case where we had more than one gage point in a unit catchment.
+    # (1) figure out their order from upstream to downstream
+    # (2) clip the polygons as appropriate
+    # (3) insert this data into subbasins_gdf, including polygon geometry and `nextdown`
+    # Next, check whether there are any unit catchments with *MORE THAN ONE POINT in them*
+    # *This will require special handing!* TODO: different data structure may be better.
+    comids = gages_gdf['COMID'].tolist()
+    repeats = find_repeated_elements(comids)
+    singles = [item for item in comids if item not in repeats]
 
-        # Update the area of the clipped unit catchment and insert value into GeoDataFrame
-        area = calc_area(cleaned_poly)
-        subbasins_gdf.at[comid, 'unitarea'] = round(area, 1)
+    gages_gdf.drop(columns=['lat', 'lng', 'geometry', 'unitarea'], inplace=True)
+    rnmap = {'lat_snap': 'lat',
+             'lng_snap': 'lng',
+             'polygon_area': 'unitarea',
+             'polygon': 'geometry'
+             }
+    gages_gdf.rename(columns=rnmap, inplace=True)
 
-        # If there were other points in this same unit catchment, we need to update the
-        # entry in table `gages_joined_gdf` in the column `COMID` by doing a new spatial join,
-        # because we just split the polygon and we need to know which part the point(s) are now in.
-        if comid in repeated_comids.keys():
-            repeated_comids = decrement_repeats_dict(repeated_comids, comid)
-            # Find all the gages that fall in this
-            rows = gages_joined_gdf[gages_joined_gdf['COMID'] == comid]
-            # But we don't need to do it for rows we have already processed
-            node_list.remove(node)
-            mask = rows.index.isin(node_list)
-            rows = rows.loc[mask]
-            rows.reset_index(inplace=True)
-            subbasins_temp = subbasins_gdf.reset_index()
-            rows_overlay = gpd.overlay(rows, subbasins_temp, how="intersection")
-            rows_overlay.set_index('id', inplace=True)
-            for id, row in rows_overlay.iterrows():
-                comid_new = row['COMID_2']
-                #gages_joined_gdf.at[id, 'COMID'] = comid_new
-                new_nodes[id] = comid_new
+    # First, handle all of the gages where there is only one gage in a unit catchment (standard treatment)
+    # These will always be upstream of the unit catchment that we are inserting it into
+    # (a) insert a new row into subbasins
+    if len(singles) > 0:
+        selected_rows = gages_gdf[gages_gdf['COMID'].isin(singles)]
+        new_nodes = selected_rows['COMID'].to_dict()
+        selected_rows.drop(columns=['COMID'], inplace=True)
+        selected_rows['nextdown'] = -999
 
+        # TODO This line seems to be creating problems with types.
+        subbasins_gdf = pd.concat([subbasins_gdf, selected_rows])
 
+        # Find and fix the 'nextdown' attribute for any nodes that were u/s of terminal catchments
+        # into which we just inserted our nodes.
+        for node, comid in new_nodes.items():
+            rows = subbasins_gdf['nextdown'] == comid
+            subbasins_gdf.loc[rows, 'nextdown'] = node
+            subbasins_gdf.loc[node, 'nextdown'] = comid
 
+            # Subtract the geometry of the new node from its parent
+            if comid != terminal_comid:
+                current_polygon = subbasins_gdf.loc[comid, 'geometry']
+                clipped_poly = subbasins_gdf.loc[node, 'geometry']
+                revised_poly = current_polygon.difference(clipped_poly)
+                cleaned_poly = fix_polygon(revised_poly)
+                subbasins_gdf.loc[comid, 'geometry'] = cleaned_poly
 
-    if PLOTS: plot_basins(subbasins_gdf, points_gdf, 'after')
+    # Next, handle the case where there are multiple gages in a unit catchment (special treatment)
+    # Handle these one target unit catchment at a time.
+    for comid in repeats:
+        # Find all of the gages that fall in this unit catchment.
+        gages_set = gages_gdf[gages_gdf['COMID'] == comid]
+        # We want to handle these in order from smallest area to largest area
+        gages_set.sort_values(by='unitarea', inplace=True)
+        gages_set['nextdown'] = gages_set.index.to_series().shift(-1).fillna(comid)
 
-    # After splitting the unit catchments, we can remove the most downstream node
-    terminal_comid = new_nodes[terminal_node_id]
+        subbasins_gdf = pd.concat([subbasins_gdf, gages_set])
+
+        # Let upstream_polygon be the cumulative upstream area that we need to subtract from our new subbasin
+        count = 0
+        for gage_id in gages_set.index:
+            if count == 0:
+                new_polygon = gages_set.at[gage_id, 'geometry']
+                upstream_polygon = new_polygon
+            else:
+                current_polygon = gages_set.at[gage_id, 'geometry']
+                revised_poly = current_polygon.difference(upstream_polygon)
+                upstream_polygon = current_polygon
+                cleaned_poly = fix_polygon(revised_poly)
+                new_polygon = cleaned_poly
+            count += 1
+            subbasins_gdf.at[gage_id, 'geometry'] = new_polygon
+            area = calc_area(new_polygon)
+            subbasins_gdf.at[gage_id, 'unitarea'] = area
+
+        # After the last one "nested gage", need to fix the connection info for
+        # any rows that previously had the unit catchment as its 'nextdown'
+        rows = subbasins_gdf['nextdown'] == comid
+        subbasins_gdf.loc[rows, 'nextdown'] = gages_set.index.to_list()[0]
+
+        # Finally, we need to clip the geometry of the base unit catchment,
+        # unless that unit catchment is downstream of the outlet, in which case it is not to be included
+        # in the output
+        if comid != terminal_comid:
+            current_polygon = subbasins_gdf.at[comid, 'geometry']
+            revised_poly = current_polygon.difference(upstream_polygon)
+            cleaned_poly = fix_polygon(revised_poly)
+            subbasins_gdf.at[comid, 'geometry'] = cleaned_poly
+            area = get_area(cleaned_poly)
+            subbasins_gdf.at[comid, 'unitarea'] = area
+
     subbasins_gdf = subbasins_gdf.drop(terminal_comid)
+    subbasins_gdf.at[terminal_node_id, 'nextdown'] = 0
 
-    # We should also remove it from our Graph representation
-    G.remove_node(terminal_comid)
-    if NETWORK_DIAGRAMS: draw_graph(G, filename='plots/{output_prefix}_network_after', vertical=False)
+    # Create a NETWORK GRAPH of the river basin.
+    if VERBOSE: print("Creating Network GRAPH")
+    G = make_river_network(subbasins_gdf, terminal_comid)
+    G = calculate_shreve_stream_order(G)
+    G = calculate_strahler_stream_order(G)
 
-    # Split the rivers data, based on the results above.
-    #   FOr most unit catchments, the river will not change.
-    #   But for the set of nodes and comids in our dictionary new_nodes, we need to do a clipping operation
+    # Add an attribute to the Graph, identifying the 'custom' nodes added by the script
+    for gage in gage_list:
+        G.nodes[gage]['custom'] = True
+
+    if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network')
+
+    # Get a visual representation of the river network.
+    # (Very basic handling for now.)
     myrivers_gdf = rivers_gdf.loc[B]
-
-    # Drop all columns except a couple that we want to keep. Why? Because after splitting the river reach segments,
-    #  this data is not going to be accurate anymore.
-    # TODO: reinstate this feature if I opt for more sophisticated handling of river polylines.
-    #columns_to_keep = ['lengthkm', 'geometry', 'sorder']
-    #myrivers_gdf = myrivers_gdf[columns_to_keep]
-
-    # First, insert a copy of the river reach into the new nodes we inserted.
-    for node, comid in new_nodes.items():
-        row_to_copy = myrivers_gdf.loc[comid]
-        row_to_copy_df = row_to_copy.to_frame().T
-        row_to_copy_df.index = [node]
-
-        myrivers_gdf = pd.concat([myrivers_gdf, row_to_copy_df])
-
-    # Now in both the new nodes and the unit catchment, CLIP the river using the polygon boundary.
-    for node, comid in new_nodes.items():
-        for id in [node, comid]:
-            if id != terminal_comid:
-                river_polyline = myrivers_gdf.at[id, 'geometry']
-                basin_polygon = subbasins_gdf.at[id, 'geometry']
-                clipped_line = river_polyline.intersection(basin_polygon)
-                myrivers_gdf.at[id, 'geometry'] = clipped_line
-                lengthkm = calc_length(clipped_line)
-                myrivers_gdf.at[id, 'lengthkm'] = round(lengthkm, 1)
-
-    # Now we can drop the terminal unit catchment from the rivers dataframe.
-    myrivers_gdf = myrivers_gdf.drop(terminal_comid)
 
     # CHECK FOR Null Geometries.
     # If the user has placed one of their points very close to an existing basin outlet,
     # we can get a null geometry. This then creates problems. So remove it.
 
-    null_nodes = subbasins_gdf.index[subbasins_gdf['unitarea'] == 0].tolist()
+    #null_nodes = subbasins_gdf.index[subbasins_gdf['unitarea'] == 0].tolist()
+    null_nodes = subbasins_gdf.index[subbasins_gdf['geometry'].is_empty].to_list()
     subbasins_gdf.drop(null_nodes, inplace=True)
 
-    # Remove this node from the graph
+    # Remove the null nodes from the graph
     for node in null_nodes:
         prune_node(G, node)
 
@@ -393,7 +337,8 @@ def delineate(input_csv: str, output_prefix: str):
             length = 0
         G.nodes[node]['length'] = round(length, 1)
 
-    # SIMPLIFY the river network by consolidating adjacent nodes.
+    # If the user wants larger subbasins, we can expand merge adjacent unit catchments.
+    # Has to be done carefully. I call it consolidating the network.
     if CONSOLIDATE:
         MERGES = {}
         G, MERGES = consolidate_network(G, MERGES, threshold_area=THRESHOLD_AREA, threshold_length=THRESHOLD_LENGTH)
@@ -416,9 +361,6 @@ def delineate(input_csv: str, output_prefix: str):
         subbasins_gdf.reset_index(inplace=True)
         subbasins_gdf.rename(columns={'target': 'comid'}, inplace=True)
 
-    # Update lat, lng because GeoPandas dissolve is not able to handle them correctly
-    subbasins_gdf.set_index('comid', inplace=True)
-
     # Add column `nextdownid` and the orders based on data in the graph
     subbasins_gdf['nextdown'] = 0
     for idx in subbasins_gdf.index:
@@ -431,6 +373,7 @@ def delineate(input_csv: str, output_prefix: str):
         subbasins_gdf.at[idx, 'strahler_order'] = G.nodes[idx]['strahler_order']
         subbasins_gdf.at[idx, 'shreve_order'] = G.nodes[idx]['shreve_order']
 
+        """
         if idx in rivers_gdf.index:
             subbasins_gdf.at[idx, 'lat'] = rivers_gdf.at[idx, 'lat']
             subbasins_gdf.at[idx, 'lng'] = rivers_gdf.at[idx, 'lng']
@@ -440,7 +383,7 @@ def delineate(input_csv: str, output_prefix: str):
             subbasins_gdf.at[idx, 'lat'] = new_outlets[idx][0]
             subbasins_gdf.at[idx, 'lng'] = new_outlets[idx][1]
             subbasins_gdf.at[idx, 'custom'] = True
-
+        """
     subbasins_gdf.reset_index(inplace=True)
 
     # round all the areas to one decimal
@@ -449,12 +392,32 @@ def delineate(input_csv: str, output_prefix: str):
     subbasins_gdf['lng'] = subbasins_gdf['lng'].round(4)
 
     # Finally, write the results to disk
-    write_outputs(G, myrivers_gdf, new_nodes, output_prefix, subbasins_gdf)
+    write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix)
 
     if VERBOSE: print("Ran succesfully!")
 
 
-def write_outputs(G, myrivers_gdf, new_nodes, output_prefix, subbasins_gdf):
+def make_gages_gdf(input_csv: str) -> gpd.GeoDataFrame:
+    """
+    Reads user data from a CSV file containing information about the desired watershed outlet points.
+    and returns a GeoPandas GeoDataFrame where the geometry field contains XY points in unprojected
+    lat, lng (CRS 4326).
+    """
+    # Check that the CSV file is there
+    if not os.path.isfile(input_csv):
+        raise Exception(f"Could not find your outlets file at: {input_csv}")
+
+    if VERBOSE: print(f"Reading your outlets data in: {input_csv}")
+    gages_df = pd.read_csv(input_csv, header=0, dtype={'id': 'str', 'lat': 'float', 'lng': 'float'})
+    # Check that the CSV file includes at a minimum: id, lat, lng and that all values are appropriate
+    validate(gages_df)
+    # Convert gages_df to a GeoPandas GeoDataFrame (adds geography, lets us do geo. operations)
+    coordinates = [Point(xy) for xy in zip(gages_df['lng'], gages_df['lat'])]
+    gages_gdf = gpd.GeoDataFrame(gages_df, crs=PROJ_WGS84, geometry=coordinates)
+    return gages_gdf
+
+
+def write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix):
     save_network(G, output_prefix, 'pkl')
     # EXPORT the geodata for (1) subbasins, (2) outlets, and (3) rivers
     # (1) SUBBASINS
@@ -475,9 +438,9 @@ def write_outputs(G, myrivers_gdf, new_nodes, output_prefix, subbasins_gdf):
     write_geodata(myrivers_gdf, fname)
     # Finally, return the larger watersheds for each outlet point, if desired
     if WATERSHEDS:
-        if VERBOSE: print(f"Creating watersheds for {len(new_nodes)} outlets.")
+        if VERBOSE: print(f"Creating MERGED watersheds geodata for {len(gages_list)} outlets.")
         try:  # TODO: Figure out why this is here and if it is still needed?
-            subbasins_gdf.set_index('comid', inplace=True)
+            subbasins_gdf.set_index('index', inplace=True)
         except:
             pass
 
@@ -485,7 +448,7 @@ def write_outputs(G, myrivers_gdf, new_nodes, output_prefix, subbasins_gdf):
             PIXEL_AREA = 0.000000695  # Constant for the area of a single pixel in MERIT-Hydro, in decimal degrees
             area_max = FILL_THRESHOLD * PIXEL_AREA
         # Iterate over each of the user's nodes
-        for node in new_nodes.keys():
+        for node in gages_list:
             if VERBOSE: print(f"Creating watershed for outlet: {node}")
             upnodes = upstream_nodes(G, node)
             upnodes.append(node)
@@ -534,6 +497,6 @@ if __name__ == "__main__":
         _run()
     else:
         # Run directly, for convenience or during development and debugging
-        input_csv = 'test_inputs/outlets1.csv'
-        output_prefix = 'ice1'
+        input_csv = 'test_inputs/outlets6.csv'
+        output_prefix = 'gen'
         delineate(input_csv, output_prefix)

@@ -55,7 +55,7 @@ def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph", vertic
             size = str(round(size, 1))
             dot.node(str(node), width=size, height=size, fixedsize='true')
 
-        if G.nodes[node].get('new'):
+        if G.nodes[node].get('custom'):
             dot.node(str(node), label=label, style='filled', fillcolor='lightblue', fontname='Arial')
         else:
             dot.node(str(node), label=label, fontname='Arial')
