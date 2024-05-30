@@ -6,7 +6,7 @@ from py.plot_network import draw_graph
 from py.graph_tools import *
 
 # Set to True to draw a bunch of network graphs. Mostly for debugging.
-DRAW = False
+DRAW = True
 
 
 def find_keys_by_value(dictionary, value):
@@ -34,53 +34,77 @@ def update_merges(MERGES, node, target):
     return MERGES
 
 
-def step1(G: nx.DiGraph, threshold_area: int or float, MERGES: dict):
+def remove_entries_with_value(d, value_to_remove):
+    """
+    Remove all entries from the dictionary where the specified value is present.
+
+    Parameters:
+    d (dict): The dictionary to modify.
+    value_to_remove: The value to remove from the dictionary.
+
+    Returns:
+    dict: A new dictionary with the specified entries removed.
+    """
+    return {k: v for k, v in d.items() if v != value_to_remove}
+
+
+def step1(G: nx.DiGraph, threshold_area: int or float, MERGES: dict, rivers2merge, rivers2delete):
     # Step #1, merge "leaves", or unit catchments with order = 1.
-    leaves = [n for n, attr in G.nodes(data=True) if attr.get('shreve_order') == 1 and 'type' not in attr]
+    leaves = [n for n, attr in G.nodes(data=True) if attr.get('shreve_order') == 1 and 'custom' not in attr]
     for leaf in leaves:
         if G.has_node(leaf):
-            successor = list(G.successors(leaf))[0]
-            neighbors = list(G.predecessors(successor))
-            neighbors.remove(leaf)
-            for neighbor in neighbors:
-                if 'type' not in G.nodes[neighbor] and G.nodes[neighbor]['shreve_order'] == 1:
-                    merged_area = G.nodes[leaf]['area'] + G.nodes[neighbor]['area']
-                    if merged_area < threshold_area:
-                        G.nodes[leaf]['area'] = merged_area
-                        G.remove_node(neighbor)
-                        # This step is essential; we are tracking merges, but
-                        # what happens when we delete a node that was previously a target?
-                        MERGES = update_merges(MERGES, neighbor, leaf)
-                        MERGES[neighbor] = leaf
+            successors = list(G.successors(leaf))
+            if len(successors) > 0:
+                successor = list(G.successors(leaf))[0]
+                neighbors = list(G.predecessors(successor))
+                neighbors.remove(leaf)
+                for neighbor in neighbors:
+                    if 'custom' not in G.nodes[neighbor] and G.nodes[neighbor]['shreve_order'] == 1:
+                        merged_area = G.nodes[leaf]['area'] + G.nodes[neighbor]['area']
+                        if merged_area < threshold_area:
+                            G.nodes[leaf]['area'] = merged_area
+                            G.remove_node(neighbor)
+                            # This step is essential; we are tracking merges, but
+                            # what happens when we delete a node that was previously a target?
+                            MERGES = update_merges(MERGES, neighbor, leaf)
+                            MERGES[neighbor] = leaf
+                            rivers2delete.append(neighbor)
+                            rivers2merge = remove_entries_with_value(rivers2merge, neighbor)
 
     G = calculate_shreve_stream_order(G)
-    return G, MERGES
+    return G, MERGES, rivers2merge, rivers2delete
 
 
-def step2(G: nx.DiGraph, threshold_area: int or float, MERGES: dict):
+def step2(G: nx.DiGraph, threshold_area: int or float, MERGES: dict, rivers2merge):
     """
-    Step #2, merge "stems", these are nodes that have exactly 1 incoming edges
-    If merging it with its downstream neighbor means the merged node has a size
+    Step #2, merge "stem" nodes with their upstream neighbor.
+    A stem node is one that has exactly 1 incoming edge, in other words it is not a junction
+    If merging it with its upstream neighbor means the merged node has a size
     below the threshold, go ahead and merge it!
 
     """
-    stems = [node for node in G.nodes if G.in_degree(node) == 1 and 'type' not in G.nodes[node]]
+    stems = [node for node in G.nodes if G.in_degree(node) == 1]
     for stem in stems:
         if G.has_node(stem):
-            successor = list(G.successors(stem))[0]
-            merged_area = G.nodes[stem]['area'] + G.nodes[successor]['area']
-            if merged_area < threshold_area:
-                predecessor = list(G.predecessors(stem))
-                G.nodes[successor]['area'] = merged_area
-                if predecessor:
-                    if successor:
-                        G.add_edge(predecessor[0], successor)
-                G.remove_node(stem)
-                MERGES = update_merges(MERGES, stem, successor)
-                MERGES[stem] = successor
+            predecessor = list(G.predecessors(stem))[0]
+            if 'custom' in G.nodes[predecessor]:
+                pass
+            else:
+                merged_area = G.nodes[stem]['area'] + G.nodes[predecessor]['area']
+                if merged_area < threshold_area:
+                    G.nodes[predecessor]['area'] = merged_area
+                    successors = list(G.successors(stem))
+                    if len(successors) > 0:
+                        successor = successors[0]
+                        G.add_edge(predecessor, successor)
+                    G.remove_node(stem)
+                    MERGES = update_merges(MERGES, stem, predecessor)
+                    MERGES[stem] = predecessor
+                    rivers2merge = update_merges(rivers2merge, stem, predecessor)
+                    rivers2merge[stem] = predecessor
 
     G = calculate_shreve_stream_order(G)
-    return G, MERGES
+    return G, MERGES, rivers2merge
 
 
 def step3(G: nx.DiGraph, threshold_length: int or float, MERGES: dict):
@@ -90,7 +114,7 @@ def step3(G: nx.DiGraph, threshold_length: int or float, MERGES: dict):
     can consider the confluences to occur in essentially the same location and eliminate the
     unit catchment. Requires special handling for the river reaches.
     """
-    junctions = [node for node in G.nodes if G.nodes[node]['length'] < threshold_length and 'type' not in G.nodes[node]]
+    junctions = [node for node in G.nodes if G.nodes[node]['length'] < threshold_length and 'custom' not in G.nodes[node]]
     for junction in junctions:
         if G.has_node(junction):
             successor = list(G.successors(junction))[0]
@@ -104,28 +128,44 @@ def step3(G: nx.DiGraph, threshold_length: int or float, MERGES: dict):
     return G, MERGES
 
 
-def step4(G: nx.DiGraph, threshold_area: int or float, MERGES: dict):
+def step4(G: nx.DiGraph, threshold_area: int or float, MERGES: dict, rivers2merge, rivers2delete):
     # Step #4, prune small solo "leaves", or unit catchments with order = 1 and area < threshold
-
-    # This step will get us all the candidate leaves.
+    # TODO: Instead of merging the leaf with the downstream node, merge it with its neighbor,
+    #   but only if there is just one (otherwise may try to merge with a polygon it does not touch)
+    # This step will get us all the *candidate* leaves.
+    # Those that have a shreve order = 1, area < threshold, and are NOT a custom node.
     leaves = [n for n, attr in G.nodes(data=True) if attr.get('shreve_order') == 1
-              and attr.get('area') < threshold_area and 'type' not in attr]
+              and attr.get('area') < threshold_area and 'custom' not in attr]
 
+    # Actually, all of the candidate leaves are OK to merge?
+    # Do not merge them with a downstream node if they have a neighbor!
     for leaf in leaves:
+        print(leaf)
         if G.has_node(leaf):
             successor = list(G.successors(leaf))[0]
-            merged_area = G.nodes[leaf]['area'] + G.nodes[successor]['area']
-            if merged_area < threshold_area:
-                G.nodes[successor]['area'] = merged_area
-                G = prune_node(G, leaf)
-                MERGES = update_merges(MERGES, leaf, successor)
-                MERGES[leaf] = successor
+            neighbors = list(G.predecessors(successor))
+            if len(neighbors) == 2:
+                neighbors.remove(leaf)
+                neighbor = neighbors[0]
+                merged_area = G.nodes[leaf]['area'] + G.nodes[neighbor]['area']
+                if merged_area < threshold_area:
+                    G.nodes[neighbor]['area'] = merged_area
+                    G = prune_node(G, leaf)
+                    MERGES = update_merges(MERGES, leaf, neighbor)
+                    MERGES[leaf] = neighbor
+
+                    rivers2delete.append(leaf)
+
+                    keys = find_keys_by_value(rivers2merge, leaf)
+                    rivers2delete.extend(keys)
+
+                    rivers2merge = remove_entries_with_value(rivers2merge, leaf)
 
     G = calculate_shreve_stream_order(G)
-    return G, MERGES
+    return G, MERGES, rivers2merge, rivers2delete
 
 
-def consolidate_network(G: nx.DiGraph, MERGES: dict, threshold_area, threshold_length):
+def consolidate_network(G: nx.DiGraph, threshold_area, threshold_length):
     """
     Consolidates the nodes in a river network graph, merging nodes to make them larger, while
     preserving the overall shape and connectivity of the graph.
@@ -140,46 +180,53 @@ def consolidate_network(G: nx.DiGraph, MERGES: dict, threshold_area, threshold_l
 
     # Make sure that the network has the Shreve stream order attribute for every node
     G = calculate_shreve_stream_order(G)
+    MERGES = {}
+    rivers2merge = {}
+    rivers2delete = []
+
     if DRAW: draw_graph(G, filename='plots/test_net', title="Original Network")
 
     # Step 1, merge leaves!
-    G, MERGES = step1(G, threshold_area, MERGES)
+    G, MERGES, rivers2merge, rivers2delete = step1(G, threshold_area, MERGES, rivers2merge, rivers2delete)
     if DRAW: draw_graph(G, filename='plots/test_pruned', title="Pruned Network after Step 1")
 
     # Step 2, merge any stems
-    G, MERGES = step2(G, threshold_area, MERGES)
+    G, MERGES, rivers2merge = step2(G, threshold_area, MERGES, rivers2merge)
     if DRAW: draw_graph(G, filename='plots/test_step2', title="Stems merged, after Step 2")
 
     # Step 3, collapse small junctions
-    G, MERGES = step3(G, threshold_length, MERGES)
-    if DRAW:  draw_graph(G, filename='plots/test_step3', title="Tiny junctions removed, after Step 3")
-
-    # Step #4, prune small solo leaves
-    G, MERGES = step4(G, threshold_area, MERGES)
-    if DRAW:  draw_graph(G, filename='plots/test_step4', title="Small solo leaves pruned, after Step 4")
+    #G, MERGES = step3(G, threshold_length, MERGES)
+    #if DRAW:  draw_graph(G, filename='plots/test_step3', title="Tiny junctions removed, after Step 3")
 
     # Iterate through the process until there are no more changes to the network?
 
     while True:
         previous_num_nodes = G.number_of_nodes()
-        G, MERGES = step1(G, threshold_area, MERGES)
-        G, MERGES = step2(G, threshold_area, MERGES)
-        G, MERGES = step3(G, threshold_length, MERGES)
-        G, MERGES = step4(G, threshold_area, MERGES)
+        G, MERGES, rivers2merge, rivers2delete = step1(G, threshold_area, MERGES, rivers2merge, rivers2delete)
+        G, MERGES, rivers2merge = step2(G, threshold_area, MERGES, rivers2merge)
+        #G, MERGES = step3(G, threshold_length, MERGES)
+        #G, MERGES, rivers2merge, rivers2delete = step4(G, threshold_area, MERGES, rivers2merge, rivers2delete)
         num_nodes = G.number_of_nodes()
         if num_nodes == previous_num_nodes:
             break
-
     if DRAW:  draw_graph(G, filename='plots/test_step5', title="After iteration, Step 5")
 
-    return G, MERGES
+    # Step #4, prune small solo leaves
+    G, MERGES, rivers2merge, rivers2delete = step4(G, threshold_area, MERGES, rivers2merge, rivers2delete)
+    if DRAW:  draw_graph(G, filename='plots/test_step4', title="Small solo leaves pruned, after Step 4")
+
+    G, MERGES, rivers2merge = step2(G, threshold_area, MERGES, rivers2merge)
+    G, MERGES, rivers2merge, rivers2delete = step1(G, threshold_area, MERGES, rivers2merge, rivers2delete)
+    G, MERGES, rivers2merge = step2(G, threshold_area, MERGES, rivers2merge)
+    if DRAW:  draw_graph(G, filename='plots/test_step6', title="Another round!!")
+
+    return G, MERGES, rivers2merge, rivers2delete
 
 
 if __name__ == "__main__":
     fname = 'output/ice2_graph.pkl'
     G = pickle.load(open(fname, "rb"))
-    MERGES = {}
     # Set a threshold for merging (e.g., 100 for the sum of areas)
     threshold_area = 300
     threshold_length = 2
-    G, MERGES = consolidate_network(G, MERGES, threshold_area=100, threshold_length=2)
+    G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=threshold_area, threshold_length=threshold_length)

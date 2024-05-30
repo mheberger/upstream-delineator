@@ -164,11 +164,20 @@ def delineate(input_csv: str, output_prefix: str):
 
     if PLOTS: plot_basins(subbasins_gdf, gages_gdf, 'before')
 
+    # Create two copies of river network data!
+    # `allrivers_gdf` will contain all the available polylines in the watershed, a nice
+    # visual representation of the river network.
+    # `myrivers_gdf` will contain the topologically correct network where there is exactly
+    # one polyline per unit catchment.
+    allrivers_gdf = rivers_gdf.loc[B]
+    myrivers_gdf = rivers_gdf.loc[B]
+
     # Iterate over the gages, and find the split polygon for each of them.
     # For now, we are going to put the split polygon geometry into a field in gages_gdf
     gages_gdf['polygon'] = None
     gages_gdf['polygon_area'] = 0
 
+    # Run the SPLIT CATCHMENT catchment routine for every gage.
     for gage_id in gages_gdf.index:
         comid = gages_gdf.at[gage_id, 'COMID']
         lat = gages_gdf.at[gage_id, 'lat']
@@ -177,8 +186,7 @@ def delineate(input_csv: str, output_prefix: str):
         # TODO: Determine if this is a good substitute for isLeaf.
         uparea = rivers_gdf.at[comid, 'uparea']
         isLeaf = (uparea < 50)
-
-        # Split catchment routine
+        # SPLIT
         new_poly, lat_snap, lng_snap = split_catchment(gage_id, megabasin, lat, lng, catchment_poly, isLeaf)
         gages_gdf.at[gage_id, 'polygon'] = new_poly
         gages_gdf.at[gage_id, 'lat_snap'] = lat_snap
@@ -188,7 +196,6 @@ def delineate(input_csv: str, output_prefix: str):
         area = calc_area(new_poly)
         gages_gdf.at[gage_id, 'polygon_area'] = round(area, 1)
 
-    # TODO
     # Now, handle the case where we had more than one gage point in a unit catchment.
     # (1) figure out their order from upstream to downstream
     # (2) clip the polygons as appropriate
@@ -227,12 +234,29 @@ def delineate(input_csv: str, output_prefix: str):
             subbasins_gdf.loc[node, 'nextdown'] = comid
 
             # Subtract the geometry of the new node from its parent
-            if comid != terminal_comid:
+            #if comid != terminal_comid:
+            if True:
                 current_polygon = subbasins_gdf.loc[comid, 'geometry']
-                clipped_poly = subbasins_gdf.loc[node, 'geometry']
-                revised_poly = current_polygon.difference(clipped_poly)
-                cleaned_poly = fix_polygon(revised_poly)
-                subbasins_gdf.loc[comid, 'geometry'] = cleaned_poly
+                new_poly = subbasins_gdf.loc[node, 'geometry']
+                old_poly = current_polygon.difference(new_poly)
+                old_poly = fix_polygon(old_poly)
+                subbasins_gdf.loc[comid, 'geometry'] = old_poly
+
+                # Split the river polyline at the new unit catchment boundary
+                # First, get the piece in what is left of the old unit catchment
+                river_line = rivers_gdf.at[comid, 'geometry']
+
+                old_river = river_line.intersection(old_poly)
+                old_river = multilinestring_to_linestring(old_river)
+                length = calc_length(old_river)
+                myrivers_gdf.at[comid, 'geometry'] = old_river
+                myrivers_gdf.at[comid, 'lengthkm'] = length
+
+                new_river = river_line.intersection(new_poly)
+                new_river = multilinestring_to_linestring(new_river)
+                length = calc_length(new_river)
+                myrivers_gdf.at[node, 'geometry'] = new_river
+                myrivers_gdf.at[node, 'lengthkm'] = length
 
     # Next, handle the case where there are multiple gages in a unit catchment (special treatment)
     # Handle these one target unit catchment at a time.
@@ -242,27 +266,40 @@ def delineate(input_csv: str, output_prefix: str):
         # We want to handle these in order from smallest area to largest area
         gages_set.sort_values(by='unitarea', inplace=True)
         gages_set['nextdown'] = gages_set.index.to_series().shift(-1).fillna(comid)
-
         subbasins_gdf = pd.concat([subbasins_gdf, gages_set])
+
+        # Get the (whole) river polyline in the original, unsplit unit catchment
+        river_line = rivers_gdf.loc[comid, 'geometry']
 
         # Let upstream_polygon be the cumulative upstream area that we need to subtract from our new subbasin
         count = 0
         for gage_id in gages_set.index:
+            # Handle the first (smallest) upstream point in the unit catchment
             if count == 0:
                 new_polygon = gages_set.at[gage_id, 'geometry']
                 upstream_polygon = new_polygon
+                new_river = river_line.intersection(new_polygon)
+
+            # Handle any subsequent points in the same unit catchment
             else:
                 current_polygon = gages_set.at[gage_id, 'geometry']
-                revised_poly = current_polygon.difference(upstream_polygon)
+                old_poly = current_polygon.difference(upstream_polygon)
                 upstream_polygon = current_polygon
-                cleaned_poly = fix_polygon(revised_poly)
+                cleaned_poly = fix_polygon(old_poly)
                 new_polygon = cleaned_poly
+                new_river = river_line.intersection(new_polygon)
+
+            # Insert the new, clipped subbasin polygon into our subbasins GeoDataFrame
             count += 1
             subbasins_gdf.at[gage_id, 'geometry'] = new_polygon
             area = calc_area(new_polygon)
             subbasins_gdf.at[gage_id, 'unitarea'] = area
-
-        # After the last one "nested gage", need to fix the connection info for
+            # Insert the new, clipped river reach polyline into our rivers GeoDataFrame
+            myrivers_gdf.at[gage_id, 'geometry'] = new_river
+            length = calc_length(new_river)
+            myrivers_gdf.at[gage_id, 'lengthkm'] = length
+            
+        # After the last "nested gage", we need to fix the connection info for
         # any rows that previously had the unit catchment as its 'nextdown'
         rows = subbasins_gdf['nextdown'] == comid
         subbasins_gdf.loc[rows, 'nextdown'] = gages_set.index.to_list()[0]
@@ -272,11 +309,15 @@ def delineate(input_csv: str, output_prefix: str):
         # in the output
         if comid != terminal_comid:
             current_polygon = subbasins_gdf.at[comid, 'geometry']
-            revised_poly = current_polygon.difference(upstream_polygon)
-            cleaned_poly = fix_polygon(revised_poly)
-            subbasins_gdf.at[comid, 'geometry'] = cleaned_poly
-            area = get_area(cleaned_poly)
+            old_poly = current_polygon.difference(upstream_polygon)
+            old_poly = fix_polygon(old_poly)
+            subbasins_gdf.at[comid, 'geometry'] = old_poly
+            area = get_area(old_poly)
             subbasins_gdf.at[comid, 'unitarea'] = area
+            new_river = gpd.overlay(river_line, new_polygon, how='overlay')
+            myrivers_gdf.at[comid, 'geometry'] = new_river
+            length = get_length(new_river)
+            myrivers_gdf.at[comid, 'lengthkm'] = length
 
     subbasins_gdf = subbasins_gdf.drop(terminal_comid)
     subbasins_gdf.at[terminal_node_id, 'nextdown'] = 0
@@ -293,15 +334,11 @@ def delineate(input_csv: str, output_prefix: str):
 
     if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network')
 
-    # Get a visual representation of the river network.
-    # (Very basic handling for now.)
-    myrivers_gdf = rivers_gdf.loc[B]
 
     # CHECK FOR Null Geometries.
     # If the user has placed one of their points very close to an existing basin outlet,
     # we can get a null geometry. This then creates problems. So remove it.
 
-    #null_nodes = subbasins_gdf.index[subbasins_gdf['unitarea'] == 0].tolist()
     null_nodes = subbasins_gdf.index[subbasins_gdf['geometry'].is_empty].to_list()
     subbasins_gdf.drop(null_nodes, inplace=True)
 
@@ -313,7 +350,7 @@ def delineate(input_csv: str, output_prefix: str):
         if VERBOSE: print(f"Pruned {len(null_nodes)} empty unit catchments from the river network.")
         if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network_pruned')
 
-    null_rivers = myrivers_gdf.index[myrivers_gdf['lengthkm'] == 0].tolist()
+    null_rivers = myrivers_gdf.index[myrivers_gdf['geometry'].is_empty].tolist()
     myrivers_gdf.drop(null_rivers, inplace=True)
 
     # SIMPLIFY the geodata?
@@ -340,8 +377,7 @@ def delineate(input_csv: str, output_prefix: str):
     # If the user wants larger subbasins, we can expand merge adjacent unit catchments.
     # Has to be done carefully. I call it consolidating the network.
     if CONSOLIDATE:
-        MERGES = {}
-        G, MERGES = consolidate_network(G, MERGES, threshold_area=THRESHOLD_AREA, threshold_length=THRESHOLD_LENGTH)
+        G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=THRESHOLD_AREA, threshold_length=THRESHOLD_LENGTH)
         if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network_final')
         subbasins_gdf['target'] = subbasins_gdf.index
 
@@ -360,9 +396,11 @@ def delineate(input_csv: str, output_prefix: str):
         subbasins_gdf.geometry = subbasins_gdf.geometry.apply(lambda p: close_holes(p, 0))
         subbasins_gdf.reset_index(inplace=True)
         subbasins_gdf.rename(columns={'target': 'comid'}, inplace=True)
+        subbasins_gdf.set_index('comid', inplace=True)
 
     # Add column `nextdownid` and the orders based on data in the graph
     subbasins_gdf['nextdown'] = 0
+
     for idx in subbasins_gdf.index:
         try:
             nextdown = list(G.successors(idx))[0]
@@ -373,23 +411,38 @@ def delineate(input_csv: str, output_prefix: str):
         subbasins_gdf.at[idx, 'strahler_order'] = G.nodes[idx]['strahler_order']
         subbasins_gdf.at[idx, 'shreve_order'] = G.nodes[idx]['shreve_order']
 
-        """
-        if idx in rivers_gdf.index:
-            subbasins_gdf.at[idx, 'lat'] = rivers_gdf.at[idx, 'lat']
-            subbasins_gdf.at[idx, 'lng'] = rivers_gdf.at[idx, 'lng']
-            subbasins_gdf.at[idx, 'custom'] = False
-
-        if idx in new_outlets.keys():
-            subbasins_gdf.at[idx, 'lat'] = new_outlets[idx][0]
-            subbasins_gdf.at[idx, 'lng'] = new_outlets[idx][1]
-            subbasins_gdf.at[idx, 'custom'] = True
-        """
     subbasins_gdf.reset_index(inplace=True)
 
     # round all the areas to one decimal
     subbasins_gdf['unitarea'] = subbasins_gdf['unitarea'].round(1)
     subbasins_gdf['lat'] = subbasins_gdf['lat'].round(4)
     subbasins_gdf['lng'] = subbasins_gdf['lng'].round(4)
+
+    # Now handle the river reaches, deleting some rows, dissolving others.
+    myrivers_gdf.drop(rivers2delete, inplace=True)
+
+    if len(rivers2merge) > 0:
+        myrivers_gdf['target'] = myrivers_gdf.index
+        for node, target in rivers2merge.items():
+            myrivers_gdf.at[node, 'target'] = target
+
+        agg = {'lengthkm': 'sum'}
+        myrivers_gdf = myrivers_gdf.dissolve(by="target", aggfunc=agg)
+        myrivers_gdf.reset_index(inplace=True)
+        myrivers_gdf.rename(columns={'target': 'comid'}, inplace=True)
+        myrivers_gdf.set_index('comid', inplace=True)
+        myrivers_gdf['geometry'] = myrivers_gdf['geometry'].apply(multilinestring_to_linestring)
+        myrivers_gdf['end_point'] = myrivers_gdf['geometry'].apply(lambda x: x.coords[0])
+        myrivers_gdf['lng'] = myrivers_gdf['end_point'].apply(lambda x: x[0])
+        myrivers_gdf['lat'] = myrivers_gdf['end_point'].apply(lambda x: x[1])
+        myrivers_gdf.drop(columns=['end_point'], inplace=True)
+
+    myrivers_gdf.drop(terminal_comid, inplace=True)
+
+    for idx in subbasins_gdf.index:
+        if idx in myrivers_gdf.index:
+            subbasins_gdf.at[idx, 'lat'] = myrivers_gdf.at[idx, 'lat']
+            subbasins_gdf.at[idx, 'lng'] = myrivers_gdf.at[idx, 'lng']
 
     # Finally, write the results to disk
     write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix)
@@ -442,7 +495,7 @@ def write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix):
         try:  # TODO: Figure out why this is here and if it is still needed?
             subbasins_gdf.set_index('index', inplace=True)
         except:
-            pass
+            subbasins_gdf.set_index('comid', inplace=True)
 
         if FILL:
             PIXEL_AREA = 0.000000695  # Constant for the area of a single pixel in MERIT-Hydro, in decimal degrees
@@ -497,6 +550,6 @@ if __name__ == "__main__":
         _run()
     else:
         # Run directly, for convenience or during development and debugging
-        input_csv = 'test_inputs/outlets6.csv'
-        output_prefix = 'gen'
+        input_csv = 'test_inputs/outlets2.csv'
+        output_prefix = 'ice2'
         delineate(input_csv, output_prefix)

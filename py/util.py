@@ -6,7 +6,7 @@ from collections import Counter
 import networkx
 import pyproj
 import shapely
-from shapely.geometry import MultiPolygon, Polygon, LineString
+from shapely.geometry import MultiPolygon, Polygon, LineString, MultiLineString
 import geopandas as gpd
 import pandas as pd
 import re
@@ -295,6 +295,7 @@ def get_megabasin(points_gdf) -> int:
     Returns:
         the ID of the megabasin, an integer from 11 to 91
     """
+    return 27
     if VERBOSE: print("Finding out which Pfafstetter Level 2 'megabasin' your outlets are in")
     megabasins_gdf = load_megabasins()
 
@@ -530,3 +531,79 @@ def save_network(G: networkx.Graph, prefix: str, file_ext: str):
         case 'xml':
             # (4) GraphML is an XML-based file format for graphs.
             networkx.write_graphml(G, filename)
+
+
+def multilinestring_to_linestring(multi_line):
+    """
+    Coerce a MultiLineString into a single LineString by connecting the different pieces.
+
+    Parameters:
+    multi_line (MultiLineString): The input MultiLineString to be converted.
+
+    Returns:
+    LineString: The resulting connected LineString.
+    """
+    if isinstance(multi_line, LineString):
+        return multi_line
+
+    if not isinstance(multi_line, MultiLineString):
+        raise ValueError("Input must be a MultiLineString")
+
+    # Extract the individual LineStrings
+    line_strings = list(multi_line.geoms)
+
+    # MODIFY to just return the longest one...
+    # Nevermind, gave poor results.
+    #lengths = [line.length for line in line_strings]
+    #max_index = lengths.index(max(lengths))
+    #return line_strings[max_index]
+    # END
+
+    if len(line_strings) == 0:
+        return LineString()
+
+    # Function to sort LineStrings so that they connect end-to-end
+    def sort_lines(lines):
+        sorted_lines = [lines.pop(0)]
+        while lines:
+            last_point = sorted_lines[-1].coords[-1]
+            found_next = False
+            for i, line in enumerate(lines):
+                if line.coords[0] == last_point:
+                    sorted_lines.append(lines.pop(i))
+                    found_next = True
+                    break
+                elif line.coords[-1] == last_point:
+                    sorted_lines.append(LineString(line.coords[::-1]))
+                    lines.pop(i)
+                    found_next = True
+                    break
+            if not found_next:
+                # If no next line is found, break the loop
+                break
+        return sorted_lines
+
+    # Find out the number of vertices in each linestring, and if it is 1, remove it
+    for line in line_strings:
+        if len(line.coords) < 3:
+            line_strings.remove(line)
+
+    if len(line_strings) == 1:
+        return line_strings[0]
+
+
+    # Sort the line segments
+    sorted_lines = sort_lines(line_strings)
+
+    # Merge the sorted LineStrings into a single LineString
+    coords = []
+    for line in sorted_lines:
+        coords.extend(line.coords)
+
+    # Remove duplicate coordinates that occur at the junctions
+    coords = [coords[0]] + [coord for i, coord in enumerate(coords[1:]) if coord != coords[i]]
+
+    # Create the final LineString
+    final_line = LineString(coords)
+
+    return final_line

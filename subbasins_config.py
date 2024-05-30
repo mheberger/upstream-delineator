@@ -32,7 +32,7 @@ PLOTS = False
 # IMPORTANT: For this to work, you need to have GraphViz installed on your computer.
 #  (Not just the graphviz Python library, which lets you access its functions.)
 #  Download installers here: https://graphviz.org/download/
-NETWORK_DIAGRAMS = True
+NETWORK_DIAGRAMS = False
 
 # Folder where you have stored the Merit-BASINS unit catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins
@@ -98,7 +98,7 @@ FILL_THRESHOLD = 100
 # (a) exceeding the threshold area (set below) or (b) messing up the network topology
 
 CONSOLIDATE = True
-THRESHOLD_AREA = 300  # in km²
+THRESHOLD_AREA = 200  # in km²
 
 # MERGE tiny junction nodes? Only activated when CONSOLIDATE == True.
 # These sometimes occur around confluences, where two tributaries
