@@ -552,13 +552,6 @@ def multilinestring_to_linestring(multi_line):
     # Extract the individual LineStrings
     line_strings = list(multi_line.geoms)
 
-    # MODIFY to just return the longest one...
-    # Nevermind, gave poor results.
-    #lengths = [line.length for line in line_strings]
-    #max_index = lengths.index(max(lengths))
-    #return line_strings[max_index]
-    # END
-
     if len(line_strings) == 0:
         return LineString()
 
@@ -590,7 +583,6 @@ def multilinestring_to_linestring(multi_line):
 
     if len(line_strings) == 1:
         return line_strings[0]
-
 
     # Sort the line segments
     sorted_lines = sort_lines(line_strings)

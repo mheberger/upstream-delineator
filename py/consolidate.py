@@ -268,10 +268,13 @@ def consolidate_network(G: nx.DiGraph, threshold_area, threshold_length):
     return G, MERGES, rivers2merge, rivers2delete
 
 
-if __name__ == "__main__":
+def main():
     fname = 'output/ice2_graph.pkl'
     G = pickle.load(open(fname, "rb"))
     # Set a threshold for merging (e.g., 100 for the sum of areas)
     threshold_area = 300
     threshold_length = 2
-    G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=threshold_area, threshold_length=threshold_length)
+    G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=threshold_area,
+                                                                 threshold_length=threshold_length)
+
+if __name__ == "__main__":

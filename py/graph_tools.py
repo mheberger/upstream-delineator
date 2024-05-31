@@ -40,11 +40,11 @@ def calculate_strahler_stream_order(graph: nx.DiGraph) -> nx.DiGraph:
 
         """
     # Step 1: Determine upstream and downstream nodes
-    upstream_nodes = {node: set() for node in graph.nodes()}
-    downstream_nodes = {node: set() for node in graph.nodes()}
+    up_nodes = {node: set() for node in graph.nodes()}
+    down_nodes = {node: set() for node in graph.nodes()}
     for u, v in graph.edges():
-        downstream_nodes[u].add(v)
-        upstream_nodes[v].add(u)
+        down_nodes[u].add(v)
+        up_nodes[v].add(u)
 
     # Step 2: Assign initial stream orders
     for node in graph.nodes():
@@ -52,7 +52,7 @@ def calculate_strahler_stream_order(graph: nx.DiGraph) -> nx.DiGraph:
 
     # Step 3: Iterate through the nodes and update stream orders
     for node in nx.topological_sort(graph):
-        upstream_orders = [graph.nodes[upstream]['strahler_order'] for upstream in upstream_nodes[node]]
+        upstream_orders = [graph.nodes[upstream]['strahler_order'] for upstream in up_nodes[node]]
         max_order = max(upstream_orders) if upstream_orders else 0
         order_count = upstream_orders.count(max_order)
         if order_count == 1:

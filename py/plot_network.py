@@ -19,6 +19,7 @@ def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph", vertic
 
     Args:
         G: the river network directed graph.
+        title: Descriptive text for the title
         filename: the filename (bare, no extension) to create
         vertical: if True, will arrange plot from top to bottom,
           Default is left to right.
