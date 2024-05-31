@@ -266,11 +266,12 @@ def load_megabasins() -> gpd.GeoDataFrame:
     # Check whether the pickle file exists
     pickle_fname = f"{PICKLE_DIR}/megabasins.pkl"
     if os.path.isfile(pickle_fname):
+        if VERBOSE: print(f"Loading Megabasins from Pickle File")
         gdf = pickle.load(open(pickle_fname, "rb"))
         return gdf
-
     else:
         # This file has the merged "megabasins_gdf" in it
+        if VERBOSE: print(f"Reading Megabasins shapefile")
         merit_basins_shp = 'data/shp/basins_level2/merit_hydro_vect_level2.shp'
         megabasins_gdf = gpd.read_file(merit_basins_shp)
 
@@ -295,9 +296,8 @@ def get_megabasin(points_gdf) -> int:
     Returns:
         the ID of the megabasin, an integer from 11 to 91
     """
-    return 27
-    if VERBOSE: print("Finding out which Pfafstetter Level 2 'megabasin' your outlets are in")
     megabasins_gdf = load_megabasins()
+    if VERBOSE: print("Finding out which Pfafstetter Level 2 'megabasin' your outlets are in")
 
     # Overlay the gage points on the Level 2 Basins polygons to find out which
     # PFAF_2 basin each point falls inside of, using a spatial join

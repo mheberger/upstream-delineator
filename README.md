@@ -1,12 +1,14 @@
-# subbasins.py
+# Upstream Delineator
+
 A set of Python scripts for delineating watersheds or drainage basins
 using data from [MERIT-Hydro](https://doi.org/10.1029/2019WR024873) and 
 [MERIT-Basins](https://doi.org/10.1029/2019WR025287). 
 The script outputs subbasins and a river network graph representation, 
-which can be useful for watershed modeling or machine learning applications. 
+which can be useful for watershed modeling or machine learning applications. These
+are also sometimes referred to as "Hydrologic Response Units" or HRUs.
 
 This script also lets you subdivide the watershed at specific locations if you provide
-additional points that fall inside the main watershed, as shown in the image below.
+additional points that fall inside the main watershed, as shown in red in the image below.
 
 ![Subbasins illustration](img/subbasins_map.jpg)
 
@@ -28,6 +30,8 @@ Optionally:
 
 The network graph can be saved in a variety of formats -- Python NetworkX Graph object (in a pickle file),
 JSON, GML, XML, etc.
+
+You can also customize the size of the subbasins; see *Outputing larger subbasins* below. 
 
 
 # Using these scripts
@@ -203,11 +207,12 @@ or via the console:
 ## <a name="step7">6. Review results</a>
 
 The script can output several different geodata formats, 
-as long as it is supported by `GeoPandas`. Shapefiles are popular, 
+as long as the format is supported by `GeoPandas`. Shapefiles are popular, 
 but I recommend **GeoPackage**, as it is a more modern and open format. 
 **Feather** is another lightweight, portable data format.
 To get a full list of available formats, follow the directions 
-[here](https://geopandas.org/en/stable/docs/user_guide/io.html#writing-spatial-data). 
+[here](https://geopandas.org/en/stable/docs/user_guide/io.html#writing-spatial-data)
+(see Supported Drivers).
 
 
 ## <a name="step8">7. Run again to fix any mistakes</a>
@@ -227,15 +232,7 @@ Once you have done this once, you can save time in the future by storing the Geo
 Enter a file path for the constant `PICKLE_DIR`, and the script will automatically save files here. 
 The script will not search for pickle files if you leave this as a blank string, `''` 
 Note that these files are not any smaller than the original shapefile, so they don't save disk space;
-they are just much faster to load. 
-
-
-# Limitations
-
-The code mostly assumes that the user's inputs make sense, and I have not 
-created code to handle all the possible edge cases. The MERIT-Basins dataset
-does have some gaps and slivers of missing data; if your outlet points falls 
-into one of these locations, it may cause problems. 
+they are just faster to load. 
 
 
 ## Simplification
@@ -243,9 +240,59 @@ into one of these locations, it may cause problems.
 The Python routine I am using to simplify the subbasin polygons (`topojson`) is not perfect.
 Sometimes, the output will contain weird overlaps and slivers. If appearances matter, 
 I recommend using external software for simplification.
-Mapshaper works well, either online, or you can insatll it an run it from the command line. 
+*Mapshaper* works well, either online, or you can insatll it an run it from the command line. 
 Note that it can only accept shapefiles or geojson, and not geopackages. 
-Of course, GIS software like QGIS (free) or ArcGIS (commercial) can do the job nicely. 
+Also, GIS software like QGIS (free) or ArcGIS (commercial) do the job nicely. 
+
+
+## Outputing larger subbasins
+
+The unit catchments in MERIT-Basins have an average size of around 40 km². If you wish to create
+larger subbasins, in `subbasins_config.py`, set the variable `CONSOLIDATE = True`.
+Then, set a value for `MAX_AREA` in km². This sets the upper limit on the size of a subbasin.
+The script will merge unit catchments such that the overall structure
+and connectivity of the drainage network is maintained. This example shows the subbasins
+for the Yellowstone River with different values of `MAX_AREA`. 
+
+![Subbasin consolidation illustration](img/consolidation.jpg)
+
+By "rediscretizing" the subbasins, you can reduce their number while increasing their size. 
+This can mean less processing time for hydrologic models. 
+
+It also appears to 
+make the subbasin sizes somewhat more homogeneous. After consolidation, the distribution
+of subbasin areas tends to become more tightly clustered around the mean, 
+as indicated by a lower coefficient
+of variation (standard deviation divided by the mean). Here are the results of a
+little experiment in using different values of `MAX_AREA` for the Yellowstone
+basin. Statistics are for the subbasin areas in km². 
+
+
+| MAX_AREA | count |  median | mean  | std. dev. |  CV   | skewness |
+|----------|-------|---------|-------|-----------|-------|----------|
+|     None |  687  |    37   |   45  |     36    |  0.80 |    1.60  |
+|      200 |  239  |   140   |  128  |     53    |  0.41 |   -1.61  |
+|      500 |   97  |   344   |  315  |    132    |  0.42 |   -0.52  |
+|    1,000 |   52  |   641   |  588  |    281    |  0.48 |   -0.39  |
+|    2,000 |   24  | 1,370   | 1,270 |    490    |  0.39 |   -1.03  |
+|    5,000 |   14  | 2,100   | 2,180 |  1,310    |  0.60 |    0.09  |
+
+
+
+## Limitations
+
+The code mostly assumes that the user's inputs make sense, and I have not 
+created extensive error handling for bad inputs, or code to handle all the possible edge cases. 
+For example, the MERIT-Basins dataset
+has some gaps and slivers of missing data; if your outlet points falls 
+into one of these locations, it may cause problems. 
+
+*Rivers* - The output river polylines are largely for display and may not 
+be fully connected. I suspect this has to do with the process of merging neighboring
+polylines, which can create multipart features with topology problems like dangles
+and disconnects. I'm still working on this problem and I'm not sure if there is an easy fix.
+If appearances are important, you can use data from MERIT-Basins or elsewhere
+to display the river network in your mapping software. 
 
 
 # Contributing

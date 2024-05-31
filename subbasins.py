@@ -1,5 +1,5 @@
 r"""
-Delineation of waterhshed subbasins, using data from
+Delineation of watershed subbasins, using data from
 MERIT-Basins and MERIT-Hydro.
 Created by Matthew Heberger, May 2024.
 
@@ -25,14 +25,13 @@ or in Python as follows:
 # Standard Python libraries. See requirements.txt for recommended versions.
 import argparse
 import sys
-import numpy as np
 from shapely.geometry import Point
 import topojson
 
-from consolidate import consolidate_network
 # My stuff
-from subbasins_config import *  # This file contains a bunch of variables
-from py.util import *  # This one contains a bunch of functions
+from subbasins_config import *  # This file contains a bunch of variables to be set before running this script
+from py.consolidate import consolidate_network, show_area_stats
+from py.util import *  # Contains a bunch of functions
 from py.graph_tools import *  # Functions for working with river network information as a Python NetworkX graph
 from py.merit_detailed import split_catchment
 from py.plot_network import draw_graph
@@ -325,6 +324,7 @@ def delineate(input_csv: str, output_prefix: str):
     # Create a NETWORK GRAPH of the river basin.
     if VERBOSE: print("Creating Network GRAPH")
     G = make_river_network(subbasins_gdf, terminal_comid)
+    if VERBOSE: show_area_stats(G)
     G = calculate_shreve_stream_order(G)
     G = calculate_strahler_stream_order(G)
 
@@ -377,7 +377,7 @@ def delineate(input_csv: str, output_prefix: str):
     # If the user wants larger subbasins, we can expand merge adjacent unit catchments.
     # Has to be done carefully. I call it consolidating the network.
     if CONSOLIDATE:
-        G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=THRESHOLD_AREA, threshold_length=THRESHOLD_LENGTH)
+        G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=MAX_AREA, threshold_length=THRESHOLD_LENGTH)
         if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network_final')
         subbasins_gdf['target'] = subbasins_gdf.index
 
@@ -391,6 +391,7 @@ def delineate(input_csv: str, output_prefix: str):
             'lng': 'max',
         }
 
+        if VERBOSE: print("Dissolving geometries. This can take time!")
         subbasins_gdf = subbasins_gdf.dissolve(by="target", aggfunc=agg)
         subbasins_gdf.geometry = subbasins_gdf.geometry.apply(lambda p: buffer(p))
         subbasins_gdf.geometry = subbasins_gdf.geometry.apply(lambda p: close_holes(p, 0))
@@ -411,33 +412,38 @@ def delineate(input_csv: str, output_prefix: str):
         subbasins_gdf.at[idx, 'strahler_order'] = G.nodes[idx]['strahler_order']
         subbasins_gdf.at[idx, 'shreve_order'] = G.nodes[idx]['shreve_order']
 
-    subbasins_gdf.reset_index(inplace=True)
-
     # round all the areas to one decimal
     subbasins_gdf['unitarea'] = subbasins_gdf['unitarea'].round(1)
     subbasins_gdf['lat'] = subbasins_gdf['lat'].round(4)
     subbasins_gdf['lng'] = subbasins_gdf['lng'].round(4)
 
-    # Now handle the river reaches, deleting some rows, dissolving others.
-    myrivers_gdf.drop(rivers2delete, inplace=True)
+    if CONSOLIDATE:
+        # Now handle the river reaches, deleting some rows, dissolving others.
+        myrivers_gdf.drop(rivers2delete, inplace=True)
 
-    if len(rivers2merge) > 0:
-        myrivers_gdf['target'] = myrivers_gdf.index
-        for node, target in rivers2merge.items():
-            myrivers_gdf.at[node, 'target'] = target
+        if len(rivers2merge) > 0:
+            myrivers_gdf['target'] = myrivers_gdf.index
+            for target, node_list in rivers2merge.items():
+                for node in node_list:
+                    myrivers_gdf.at[node, 'target'] = target
 
-        agg = {'lengthkm': 'sum'}
-        myrivers_gdf = myrivers_gdf.dissolve(by="target", aggfunc=agg)
-        myrivers_gdf.reset_index(inplace=True)
-        myrivers_gdf.rename(columns={'target': 'comid'}, inplace=True)
-        myrivers_gdf.set_index('comid', inplace=True)
-        myrivers_gdf['geometry'] = myrivers_gdf['geometry'].apply(multilinestring_to_linestring)
-        myrivers_gdf['end_point'] = myrivers_gdf['geometry'].apply(lambda x: x.coords[0])
-        myrivers_gdf['lng'] = myrivers_gdf['end_point'].apply(lambda x: x[0])
-        myrivers_gdf['lat'] = myrivers_gdf['end_point'].apply(lambda x: x[1])
-        myrivers_gdf.drop(columns=['end_point'], inplace=True)
+            agg = {'lengthkm': 'sum'}
+            myrivers_gdf = myrivers_gdf.dissolve(by="target", aggfunc=agg)
+            myrivers_gdf.reset_index(inplace=True)
+            myrivers_gdf.rename(columns={'target': 'comid'}, inplace=True)
+            myrivers_gdf.set_index('comid', inplace=True)
+            myrivers_gdf['geometry'] = myrivers_gdf['geometry'].apply(multilinestring_to_linestring)
 
-    myrivers_gdf.drop(terminal_comid, inplace=True)
+    myrivers_gdf['end_point'] = myrivers_gdf['geometry'].apply(lambda x: x.coords[0])
+    myrivers_gdf['lng'] = myrivers_gdf['end_point'].apply(lambda x: x[0])
+    myrivers_gdf['lat'] = myrivers_gdf['end_point'].apply(lambda x: x[1])
+    myrivers_gdf.drop(columns=['end_point'], inplace=True)
+
+    try:
+        myrivers_gdf.drop(terminal_comid, inplace=True)
+    except:
+        pass
+
 
     for idx in subbasins_gdf.index:
         if idx in myrivers_gdf.index:
@@ -474,28 +480,24 @@ def write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix):
     save_network(G, output_prefix, 'pkl')
     # EXPORT the geodata for (1) subbasins, (2) outlets, and (3) rivers
     # (1) SUBBASINS
-    #subbasins_gdf.reset_index(inplace=True)
-    #subbasins_gdf.rename(columns={'index': 'comid'}, inplace=True)
-    #subbasins_gdf.rename(columns={'COMID': 'comid'}, inplace=True)
     fname = f"{OUTPUT_DIR}/{output_prefix}_subbasins.{OUTPUT_EXT}"
     write_geodata(subbasins_gdf, fname)
+
     # (2) Get the OUTLETS data and write it to disk
     outlets_gdf = subbasins_gdf.copy()
     outlets_gdf['geometry'] = outlets_gdf.apply(lambda row: Point(row['lng'], row['lat']), axis=1)
     fname = f"{OUTPUT_DIR}/{output_prefix}_outlets.{OUTPUT_EXT}"
     write_geodata(outlets_gdf, fname)
+
     # (3) Write the RIVERS data to disk.
     myrivers_gdf.reset_index(inplace=True)
     myrivers_gdf.rename(columns={'index': 'comid'}, inplace=True)
     fname = f"{OUTPUT_DIR}/{output_prefix}_rivers.{OUTPUT_EXT}"
     write_geodata(myrivers_gdf, fname)
+
     # Finally, return the larger watersheds for each outlet point, if desired
     if WATERSHEDS:
         if VERBOSE: print(f"Creating MERGED watersheds geodata for {len(gages_list)} outlets.")
-        try:  # TODO: Figure out why this is here and if it is still needed?
-            subbasins_gdf.set_index('index', inplace=True)
-        except:
-            subbasins_gdf.set_index('comid', inplace=True)
 
         if FILL:
             PIXEL_AREA = 0.000000695  # Constant for the area of a single pixel in MERIT-Hydro, in decimal degrees
@@ -550,6 +552,6 @@ if __name__ == "__main__":
         _run()
     else:
         # Run directly, for convenience or during development and debugging
-        input_csv = 'test_inputs/outlets2.csv'
-        output_prefix = 'ice2'
+        input_csv = 'test_inputs/outlet_dworshak.csv'
+        output_prefix = 'dworshak'
         delineate(input_csv, output_prefix)

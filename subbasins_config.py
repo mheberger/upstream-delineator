@@ -47,13 +47,13 @@ RIVERS_DIR = "C:/Data/GIS/MERITBasins/rivers"
 # Folder where the script will write the output geodata
 OUTPUT_DIR = "output"
 
-# The file extension will determine the types of geodata files the script creates.
+# The output file extension will determine the types of geodata files the script creates.
 #   "gpkg" for GeoPackage (recommended)
 #   "geojson" for GeoJSON files
 #   "shp" for shapefile
 # The list of possibilities depends one what is supported by GeoPandas.
 # See: https://geopandas.org/en/stable/docs/user_guide/io.html#writing-spatial-data
-OUTPUT_EXT = "geojson"
+OUTPUT_EXT = "gpkg"
 
 # Directory to store Python pickle files. It can be slow for Python to
 # read shapefiles and create a GeoDataFrame. Once you have done this once, you
@@ -98,9 +98,10 @@ FILL_THRESHOLD = 100
 # (a) exceeding the threshold area (set below) or (b) messing up the network topology
 
 CONSOLIDATE = True
-THRESHOLD_AREA = 200  # in km²
+MAX_AREA = 1000  # in km²
 
 # MERGE tiny junction nodes? Only activated when CONSOLIDATE == True.
+# TODO: NOT CURRENTLY IMPLEMENTED.
 # These sometimes occur around confluences, where two tributaries
 # join the mainstem close to one another. If you want to consider them joining at the same
 # location, set the length below, in km. If you don't want to do this, set it to a big number like 99999
