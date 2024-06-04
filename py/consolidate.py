@@ -276,7 +276,7 @@ def step4(G: nx.DiGraph, threshold_area: int or float, MERGES: dict, rivers2merg
     return G, MERGES, rivers2merge, rivers2delete
 
 
-def consolidate_network(G: nx.DiGraph, threshold_area, threshold_length):
+def consolidate_network(G: nx.DiGraph, threshold_area):
     """
     Consolidates the nodes in a river network graph, merging nodes to make them larger, while
     preserving the overall shape and connectivity of the graph.
@@ -345,8 +345,7 @@ def main():
     # Set a threshold for merging (e.g., 100 for the sum of areas)
     threshold_area = 300
     threshold_length = 2
-    G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=threshold_area,
-                                                                 threshold_length=threshold_length)
+    G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=threshold_area)
 
 
 def test():

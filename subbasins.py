@@ -121,6 +121,7 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
     gages_list = gages_gdf['id'].tolist()  # Get the list before doing the join.
     gages_gdf = gpd.overlay(gages_gdf, catchments_gdf, how="intersection")
     gages_gdf.set_index('id', inplace=True)
+    gages_gdf.set_crs(crs=PROJ_WGS84)
 
     # For any gages for which we could not find a unit catchment, add issue a warning
     # Basically checking which rows do not appear after doing the overlay
@@ -188,9 +189,8 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
         lat = gages_gdf.at[gage_id, 'lat']
         lng = gages_gdf.at[gage_id, 'lng']
         catchment_poly = subbasins_gdf.loc[comid, 'geometry']
-        uparea = rivers_gdf.at[comid, 'uparea']
-        # TODO: It would be better to extract this information from the network graph
-        isLeaf = (uparea < 50)  # A leaf is an unit catchment with no upstream neihbor.
+
+        isLeaf = rivers_gdf.at[comid, 'up1'] == 0  # A leaf is an unit catchment with no upstream neihbor.
         # SPLIT
         new_poly, lat_snap, lng_snap = split_catchment(gage_id, megabasin, lat, lng, catchment_poly, isLeaf)
         gages_gdf.at[gage_id, 'polygon'] = new_poly
@@ -216,12 +216,15 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
              'polygon': 'geometry'
              }
     gages_gdf.rename(columns=rnmap, inplace=True)
+    gages_gdf.set_crs(crs=PROJ_WGS84)
+    gages_gdf.set_geometry(col="geometry")
 
     # First, handle all of the gages where there is only one gage in a unit catchment (standard treatment)
     # These will always be upstream of the unit catchment that we are inserting it into
     # (a) insert a new row into subbasins
     if len(singles) > 0:
         selected_rows = gages_gdf[gages_gdf['COMID'].isin(singles)]
+        selected_rows.set_crs(crs=PROJ_WGS84)  # Just needed to eliminate an annoying warning
         new_nodes = selected_rows['COMID'].to_dict()
         selected_rows.drop(columns=['COMID'], inplace=True)
         selected_rows['nextdown'] = -999
@@ -261,12 +264,13 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
     for comid in repeats:
         # Find all of the gages that fall in this unit catchment.
         gages_set = gages_gdf[gages_gdf['COMID'] == comid]
+        gages_set.set_crs(crs=PROJ_WGS84)
         # We want to handle these in order from smallest area to largest area
         gages_set.sort_values(by='unitarea', inplace=True)
         gages_set['nextdown'] = gages_set.index.to_series().shift(-1).fillna(comid)
         subbasins_gdf = pd.concat([subbasins_gdf, gages_set])
 
-        # Get the (whole) river polyline in the original, unsplit unit catchment
+        # Get the (whole) river polyline in the original, unsplit unit catchment, so we can split into pieces
         river_line = rivers_gdf.loc[comid, 'geometry']
 
         # Let upstream_polygon be the cumulative upstream area that we need to subtract from our new subbasin
@@ -376,8 +380,7 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
     # If the user wants larger subbasins, we can expand merge adjacent unit catchments.
     # Has to be done carefully. I call it consolidating the network.
     if CONSOLIDATE:
-        G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=MAX_AREA,
-                                                                     threshold_length=THRESHOLD_LENGTH)
+        G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=MAX_AREA)
         if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{OUTPUT_PREFIX}_network_final')
         subbasins_gdf['target'] = subbasins_gdf.index
 
@@ -391,7 +394,7 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
             'lng': 'last',
         }
 
-        if VERBOSE: print("Dissolving geometries. This can take time!")
+        if VERBOSE: print("Dissolving geometries. Can be slow. Please wait...")
         subbasins_gdf = subbasins_gdf.dissolve(by="target", aggfunc=agg)
         subbasins_gdf.geometry = subbasins_gdf.geometry.apply(lambda p: buffer(p))
         subbasins_gdf.geometry = subbasins_gdf.geometry.apply(lambda p: close_holes(p, 0))
@@ -552,8 +555,8 @@ def _run():
 
 def test():
     # Run directly, for convenience or during development and debugging
-    input_csv = 'test_inputs/susquehanna.csv'
-    out_prefix = 'susquehanna'
+    input_csv = 'test_inputs/gen.csv'
+    out_prefix = 'gen'
     delineate(input_csv, out_prefix)
 
 
