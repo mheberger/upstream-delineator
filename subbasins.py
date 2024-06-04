@@ -3,13 +3,13 @@ Delineation of watershed subbasins, using data from
 MERIT-Basins and MERIT-Hydro.
 Created by Matthew Heberger, May 2024.
 
-See README for detailed instructions.
+See README for more detailed instructions.
 
-Quick guide:
+Quick Start:
 
 First, set parameters in the file subbasins_config.py.
 
-Run it from the command line like this.
+Run this script from the command line with two required arguments:
 $ python subbsins.py outlets.csv testrun
 
 or with a full file path as follows on Windows or Linux:
@@ -114,10 +114,10 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
     rivers_gdf['lng'] = rivers_gdf['end_point'].apply(lambda x: x[0])
     rivers_gdf['lat'] = rivers_gdf['end_point'].apply(lambda x: x[1])
 
-    # Perform a Spatial join on gages (points) and the unit catchments (polygons)
-    # to find the corresponding unit catchment for each gage
-    # Adds the fields COMID and unitarea
-    if VERBOSE: print(f"Performing spatial join on {num_gages} outlet points in basin #{megabasin}")
+    # Perform an overlay analysis on gages (points) and the unit catchments (polygons)
+    # to find the corresponding unit catchment in which each gages is located.
+    # Adds the fields COMID and unitarea to `gages_gdf`
+    if VERBOSE: print(f"Performing overlay analysis on {num_gages} outlet points in basin #{megabasin}")
     gages_list = gages_gdf['id'].tolist()  # Get the list before doing the join.
     gages_gdf = gpd.overlay(gages_gdf, catchments_gdf, how="intersection")
     gages_gdf.set_index('id', inplace=True)
@@ -336,7 +336,7 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
         G.nodes[gage]['custom'] = True
 
     # Draw the network before consolidating? Mostly useful for debugging.
-    if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{OUTPUT_PREFIX}_premerge')
+    # if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{OUTPUT_PREFIX}_premerge')
 
     # CHECK FOR Null Geometries.
     # If the user has placed one of their points very close to an existing basin outlet,

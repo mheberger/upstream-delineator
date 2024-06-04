@@ -32,7 +32,7 @@ PLOTS = False
 # IMPORTANT: For this to work, you need to have GraphViz installed on your computer.
 #  (Not just the graphviz Python library, which lets you access its functions.)
 #  Download installers here: https://graphviz.org/download/
-NETWORK_DIAGRAMS = False
+NETWORK_DIAGRAMS = True
 
 # Folder where you have stored the Merit-BASINS unit catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins

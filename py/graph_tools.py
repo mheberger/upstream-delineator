@@ -75,19 +75,19 @@ def calculate_shreve_stream_order(graph: nx.DiGraph) -> nx.DiGraph:
         a Graph
 
     """
-    upstream_nodes = {node: set() for node in graph.nodes()}
-    downstream_nodes = {node: set() for node in graph.nodes()}
+    up_nodes = {node: set() for node in graph.nodes()}
+    down_nodes = {node: set() for node in graph.nodes()}
     for u, v in graph.edges():
-        downstream_nodes[u].add(v)
-        upstream_nodes[v].add(u)
+        down_nodes[u].add(v)
+        up_nodes[v].add(u)
 
     for node in graph.nodes():
         graph.nodes[node]['shreve_order'] = 1
 
     for node in nx.topological_sort(graph):
-        if upstream_nodes[node]:
+        if up_nodes[node]:
             graph.nodes[node]['shreve_order'] = max([graph.nodes[upstream]['shreve_order']
-                                                     for upstream in upstream_nodes[node]]) + 1
+                                                     for upstream in up_nodes[node]]) + 1
 
     return graph
 
@@ -198,14 +198,14 @@ def upstream_nodes(G: nx.DiGraph, node) -> list:
     if not G.has_node(node):
         raise ValueError("The specified node is not in the graph.")
 
-    upstream_nodes = set()
+    up_nodes = set()
     to_visit = [node]
 
     while to_visit:
         current = to_visit.pop()
         for predecessor in G.predecessors(current):
-            if predecessor not in upstream_nodes:
-                upstream_nodes.add(predecessor)
+            if predecessor not in up_nodes:
+                up_nodes.add(predecessor)
                 to_visit.append(predecessor)
 
-    return list(upstream_nodes)
+    return list(up_nodes)

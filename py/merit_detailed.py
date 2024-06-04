@@ -97,8 +97,8 @@ def split_catchment(wid: str, basin: int, lat: float, lng: float, catchment_poly
 
     # Open the flow direction raster *using windowed reading mode*
     fdir_fname = "{}/flowdir{}.tif".format(MERIT_FDIR_DIR, basin)
-    #if VERBOSE: print("Loading flow direction raster from: {}".format(fdir_fname))
-    #if VERBOSE: print(" using windowed reading mode with bounding_box = {}".format(repr(bounding_box)))
+    # if VERBOSE: print("Loading flow direction raster from: {}".format(fdir_fname))
+    # if VERBOSE: print(" using windowed reading mode with bounding_box = {}".format(repr(bounding_box)))
 
     if not os.path.isfile(fdir_fname):
         raise Exception("Could not find flow flow direction raster: {}".format(fdir_fname))
@@ -156,7 +156,7 @@ def split_catchment(wid: str, basin: int, lat: float, lng: float, catchment_poly
     if PLOTS:
         plot_flowdir(fdir, lat, lng, wid, dirmap, catchment_poly)
 
-    #if VERBOSE: print("Snapping pour point")
+    # if VERBOSE: print("Snapping pour point")
 
     # Open the accumulation raster, again using windowed reading mode.
     accum_fname = '{}/accum{}.tif'.format(MERIT_ACCUM_DIR, basin)
@@ -193,7 +193,7 @@ def split_catchment(wid: str, basin: int, lat: float, lng: float, catchment_poly
         # setting this value too low causes incorrect results and weird topology problems in the output
         numpixels = THRESHOLD_MULTIPLE
 
-    #if VERBOSE: print("Using threshold of {} for number of upstream pixels.".format(numpixels))
+    # if VERBOSE: print("Using threshold of {} for number of upstream pixels.".format(numpixels))
 
     # Snap the pour point to a point on the accumulation grid where accum (# of upstream pixels)
     # is greater than our threshold

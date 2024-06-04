@@ -6,7 +6,7 @@ from collections import Counter
 import networkx
 import pyproj
 import shapely
-from shapely.geometry import MultiPolygon, Polygon, LineString, MultiLineString
+from shapely.geometry import MultiPolygon, Polygon, LineString
 import geopandas as gpd
 import pandas as pd
 import re

@@ -75,9 +75,9 @@ def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph", vertic
 
 if __name__ == "__main__":
     # Example usage:
-    # Create a directed acyclic graph (DAG)
-    G = nx.DiGraph()
-    G.add_edges_from([(1, 2), (1, 3), (3, 4), (2, 4), (4, 5)])
+    # Create a directed acyclic graph
+    GR = nx.DiGraph()
+    GR.add_edges_from([(1, 2), (1, 3), (3, 4), (2, 4), (4, 5)])
 
     # Plot the DAG
-    draw_graph(G, "my_dag")
+    draw_graph(GR, "my_dag")
