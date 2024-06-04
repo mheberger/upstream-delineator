@@ -555,8 +555,8 @@ def _run():
 
 def test():
     # Run directly, for convenience or during development and debugging
-    input_csv = 'test_inputs/gen.csv'
-    out_prefix = 'gen'
+    input_csv = 'test-outlets.csv'
+    out_prefix = 'iceland'
     delineate(input_csv, out_prefix)
 
 

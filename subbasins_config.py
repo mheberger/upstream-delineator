@@ -102,7 +102,7 @@ FILL_THRESHOLD = 100
 # (b) the network topology is maintained (overall connectivity of the flow network)
 
 CONSOLIDATE = True
-MAX_AREA = 1500  # in km²
+MAX_AREA = 300  # in km²
 
 # MERGE tiny junction nodes? Only activated when CONSOLIDATE == True.
 # TODO: NOT CURRENTLY IMPLEMENTED.
