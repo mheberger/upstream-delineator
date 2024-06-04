@@ -70,13 +70,16 @@ THRESHOLD_MULTIPLE = 5000
 
 # Simplify the output geodata? This will remove some vertices
 # from the watershed boundary and river centerlines and produce smaller files.
-SIMPLIFY = False
+SIMPLIFY = True
 
 # If SIMPLIFY is True, set SIMPLIFY_TOLERANCE to a value in decimal degrees.
 SIMPLIFY_TOLERANCE = 0.0008
 
-# Do you wish to retun the whole watershed (a single polygon) for each of the outlet points?
-WATERSHEDS = True
+# Do you wish to retun the whole watershed (a single polygon) for EACH individual the outlet point?
+WATERSHEDS = False
+
+# Output all of the river polylines (even small ones). Perhaps useful for display and mapping.
+OUTPUT_ALL_RIVERS = False
 
 # Watersheds created with Merit-Hydro data tend to have many "donut holes"
 # ranging from one or two pixels to much larger. Setting FILL = True, will
@@ -94,11 +97,12 @@ FILL = True
 FILL_THRESHOLD = 100
 
 # Consolidate the sub-basins to make a larger size? If set to true, the script will
-# merge adjacent subbasins until they cannot be merged any longer without
-# (a) exceeding the threshold area (set below) or (b) messing up the network topology
+# merge adjacent subbasins such that
+# (a) subbasins do not exceed a max. threshold area and
+# (b) the network topology is maintained (overall connectivity of the flow network)
 
 CONSOLIDATE = True
-MAX_AREA = 1000  # in km²
+MAX_AREA = 1500  # in km²
 
 # MERGE tiny junction nodes? Only activated when CONSOLIDATE == True.
 # TODO: NOT CURRENTLY IMPLEMENTED.
