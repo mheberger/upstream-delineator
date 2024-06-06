@@ -3,12 +3,11 @@
 A set of Python scripts for delineating watersheds or drainage basins
 using data from [MERIT-Hydro](https://doi.org/10.1029/2019WR024873) and 
 [MERIT-Basins](https://doi.org/10.1029/2019WR025287). 
-The script outputs subbasins and a river network graph representation, 
+The script outputs geospatial data for subbasins and river reaches, 
+and creates a river network graph representation, 
 which can be useful for watershed modeling or machine learning applications. 
 
-These kinds of subbasins are also sometimes referred to as "Hydrologic Response Units" or HRUs.
-
-This script also lets you subdivide the watershed at specific locations if you provide
+This script also lets you subdivide the watershed at specific locations, such as gages, if you provide
 additional points that fall inside the main watershed, as shown in red in the image below.
 
 ![Subbasins illustration](img/subbasins_map.jpg)
@@ -43,7 +42,7 @@ Instructions on how to get the data and run the script are provided below.
 
 To get started, download the latest release from this GitHub repository (or fork the repository).
 
-These scripts were developed and tested with Python version 3.11.
+These scripts were developed and tested with Python version 3.11 and 3.12.
 
 I recommend creating a Python virtual environment in which to run the script.
 Here is a good [introduction to virtual environments]
@@ -59,7 +58,7 @@ To create the virtual environment:
 python -m venv venv
 ```
 
-To activate the virtual environment:
+To activate the virtual environment (on Windows you may need to allow scripts using -- search for `Set-ExecutionPolicy`). 
 
 ```
 # Windows Command Prompt or PowerShell
@@ -78,10 +77,23 @@ $ pip install -r requirements.txt
 ```
 This script uses the latest versions of Python packages circa April 2024.
 
+## Install GraphViz
+
+If you want the scripts to make diagrams of your river network, you will need
+to install the program GraphViz (not just the Python library, but the standalone
+software as well). Go to: [https://graphviz.org/download/](https://graphviz.org/download/).
+During the installation, make sure you add GraphViz to the system path. 
+
+The script will make these diagrams if you set the variable `NETWORK_DIAGRAMS = True` 
+in `subbasins_config.py`. 
+
 
 # Overview of using `subbasins.py`
 
 The major steps are the following, with more detailed instructions below.
+To simply try the program with the sample data provided, you can skip to step 5. 
+When you are ready to try with your own locations, you will need to download additional 
+data as described in steps 1 and 2.
 
 1. [Download basin-scale MERIT-Hydro raster data (mghydro.com)](#step1)
 2. [Download MERIT-Basins vector data (reachhydro.com)](#step2)
@@ -96,6 +108,7 @@ The data files are organized into continental-scale river basins, or Pfafstetter
 There are 61 of these basins in total. Basins are identified by a 2-digit code, with values from 11 to 91. 
 
 ![MERIT Level 2 Basins](img/merit_level2_basins.jpg)
+MERIT Level 2 megabasins
 
 # Detailed Instructions
 
@@ -104,7 +117,8 @@ There are 61 of these basins in total. Basins are identified by a 2-digit code, 
 You will need two sets of MERIT-Hydro gridded (or raster) data: **flow accumulation**
 and **flow direction**. 
 The authors of the MERIT-Hydro created 5-degree tiles, but this script needs seamless 
-layers that cover entire river basins. You can freely download these data here:
+layers that cover entire river basins. I have already done the work of merging these
+raster data files. You can freely download them here:
 [https://mghydro.com/watersheds/rasters](https://mghydro.com/watersheds/rasters)
 
 You will need to update `subbasins_config.py` to tell the script where to find these data files. 
@@ -116,19 +130,20 @@ Modify these variables:
 
 ## 2. <a name="step2">Download MERIT-Basins vector data</a>
 
-Download the shapefiles for unit catchments and river reaches. Follow the instructions here:
+Download the shapefiles for unit catchments and river reaches from the creators of MERIT-Basins. 
+Follow the instructions here:
 [https://www.reachhydro.org/home/params/merit-basins](https://www.reachhydro.org/home/params/merit-basins)
 
 In the folder `pfaf_level_02` , download two sets of files:
 
 1. unit catchment shapefiles: `cat_pfaf_##_MERIT_Hydro_v07_Basins_v01.shp`
-2. river flowline shapefiles: `riv_pfaf_##_MERIT_Hydro_v07_Basins_v01.shp`
+2. river reach shapefiles: `riv_pfaf_##_MERIT_Hydro_v07_Basins_v01.shp`
 
 In these files, `##` is the Pfafstetter Level 2 basin code. 
 See the figure above to determine which of the 61 level 2 basins you need, 
 depending on your region of interest. 
 
-(Do NOT download the files marked 'bugfix' from MERIT-Basins. These files cause
+(**Note**: Do NOT download the files marked 'bugfix' from MERIT-Basins. These files cause
 errors for some reason.)
 
 Unzip these files and save them to a folder on your hard drive. 
@@ -144,7 +159,7 @@ not run if this file is not formatted correctly.
 The CSV file **must** contain three required fields or columns.
 
 - **id** - _required_: a unique identifier for your watershed or outlet point,
-an alphanumeric string. May be any length, but shorter is better. 
+an alphanumeric string. The id may be any length, but shorter is better. 
 The script uses the id as the filename for output, so avoid using any 
 forbidden characters. On Linux, do not use the forward slash /. 
 On Windows, the list of forbidden characters is slightly longer (`\< \> : " / \ | ? \*`).
@@ -158,6 +173,7 @@ For example, use 23.0 instead of 23.
 All latitude and longitude coordinates should be in decimal degrees 
 (EPSG: 4326, [https://spatialreference.org/ref/epsg/4326//](https://spatialreference.org/ref/epsg/4326/)).
 
+- The order of the columns does not matter, but the names must be exactly as shown above.
 
 - The first row in the CSV file will be the main basin outlet.
 
@@ -184,7 +200,7 @@ if you provide 'shasta', the script will produce `shasta_subbasins.shp`, `shasta
 Run the script from the command line like this:
 
 ```
-$ python subbsins.py outlets.csv shasta
+$ python subbasins.py outlets.csv shasta
 ```
 
 This assumes you have put `outlets.csv` in the same folder with the scripts, 
@@ -241,13 +257,13 @@ The Python routine I am using to simplify the subbasin polygons (`topojson`) is 
 Sometimes, the output will contain weird overlaps and slivers. If appearances matter, 
 I recommend setting `SIMPLIFY = False` and using external software for simplification.
 
-*Mapshaper* works well. You can use the web version, or you can insatll it an run it from the command line. 
+*Mapshaper* works well. You can use the [web version](https://mapshaper.org/), or you can install and run it from the command line. 
 Note that mapshaper will only accept shapefiles or geojson as input, and not geopackages or feather files. 
 
 As an alternative, GIS software like QGIS (free) or ArcGIS (commercial) do the job nicely. 
 
 
-# Outputing larger subbasins
+# Outputting larger subbasins
 
 The unit catchments in MERIT-Basins have an average size of around 40 km². If you wish to create
 larger subbasins, in `subbasins_config.py`, set the variable `CONSOLIDATE = True`.
@@ -263,7 +279,7 @@ This means that your hydrologic model will be smaller and simpler and probably r
 
 The simplification routine also appears to 
 make the subbasin sizes somewhat more homogeneous. The area of MERIT-Basins unit catchments
-is highly variable, and highly skeweed, with many very small unit catchments.
+is highly variable, and highly skewed, with many very small unit catchments.
  After consolidation, the distribution
 of subbasin areas tends to be more tightly clustered around the mean, 
 as indicated by a lower coefficient
@@ -292,6 +308,10 @@ has some gaps and slivers of missing data; if your outlet points falls
 into one of these locations, it may cause problems. In this case, simply nudge the 
 location by changing the latitude and/or longitude slightly. 
 
+As another example, if you put two points in your input file that are the same, or very close
+to one another, the script will fail and the error messages will not be very helpful. Please
+makes sure all of your points have a little space between them!
+
 ![Illustration of problem with outlet point falling into a gap](img/karthaus_example.jpg)
 
 
@@ -307,14 +327,16 @@ and then do a pull request on GitHub.
 
 
 # Acknowledgments
-Code developed with support from [Upstream Tech](https://www.upstream.tech/).
+
+This code was developed with support from [Upstream Tech](https://www.upstream.tech/).
 
 
 # Potential Enhancements
-Two of the slowest steps in this script involve reading geodata from disk and performing
-overlay analyses, to find out the intersection between points and polygons. If the user
-has PostgreSQL and PostGIS installed, this analysis could be done much faster. So a 
-possible future enhancement is to add support for PostGIS-enabled geographic operations.
+
+Enable PostGIS support -- Among the slowest steps in this script are reading 
+geodata files from disk performing overlay analyses. If the user
+has PostgreSQL and PostGIS installed, this analysis could be done much faster
+using PostGIS queries.  
 
 
 

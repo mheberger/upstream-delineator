@@ -79,8 +79,9 @@ def trim_clusters(G: nx.DiGraph, threshold_area: int or float, MergesDict: dict,
     Step #1, merge "leaves", or unit catchments with order = 1 with their downstream node,
     if the resulting area would not exceed the user's threshold for max. area.
 
-    Any river reach polylines that were in these unit catchments will be deleted.
     Here, the o's are removed.
+    Any river reach polylines that were in these unit catchments will be deleted.
+    The unit catchment polygon areas will be merged with x.
     o──┐
     o──x──    →   x──
     o──┘
@@ -122,10 +123,9 @@ def collapse_stems(G: nx.DiGraph, max_area: int or float, MergesDict: dict, rive
 
     o──x──o   →   o────o
 
-    The nodes we identify as a stem node will be removed. Its area will be merged with
-    the downstream node, and its river reach will also be merged with the downstream node's
-    river reach.
-
+    The stem node x will be removed.
+    Its catchment polygon area will be merged with the downstream node's catchment polygon
+    Its river reach polyline will be merged with the downstream node's river reach.
     """
 
     stems = [node for node in G.nodes if G.in_degree(node) < 2 and 'custom' not in G.nodes[node]]
@@ -188,16 +188,18 @@ def prune_leaves(G: nx.DiGraph,
                  rivers2delete: list) -> Tuple[nx.Graph, dict, dict, list]:
     """
     Step #3, merges small solo "leaves" with their neighbors.
-    Candidates are unit catchments with Shreve order = 1 and area < threshold
+    Candidates are unit catchments with Shreve order = 1 AND area < threshold
     If they have exactly one neighbor, we can merge this unit catchment with its neighbor
     and delete its river reach.
 
-    Here, x is merged with its "neighbor," node 1
+    Here, node x is merged with its "neighbor," node 1
 
     o──┐                   o───┐
     o──(1)──o──o──    →    o──(1)──o──o──
         x───┘
 
+    The polygon area of x is merged with (1)
+    The river reach in x is deleted.
     """
 
     # This step will get us all the *candidate* leaves.
@@ -231,22 +233,22 @@ def prune_leaves(G: nx.DiGraph,
 
 def last_merge(G: nx.DiGraph, threshold_area: int or float, MERGES: dict, rivers2merge) -> Tuple[nx.Graph, dict, dict]:
     """
-    Final step, will merge the unit catchment immediately upstream of the custom
-    nodes IFF they have only a single incoming edge.
+    This final step in consolidating the river network graph,
+    Merge stem nodes with their downstream neighbor where appropriate.
+    Candidates nodes are those with only a single incoming edge (what I call stem nodes).
 
-    The u/s node we identify as a stem node will be removed. Its area will be merged with
-    the downstream node, and its river reach will also be merged with the downstream node's
-    river reach.
+    The node will be removed.
+    Its area will be merged with the downstream node
+    Its river reach will also be merged with the downstream node's river reach.
+
+    Basically, very similar to the function above `collapse_stems`, but merges nodes with their
+    downstream neighbor instead of going upstream. I found this was necessary as a final step
+    to clean up any remaining small nodes that had been missed by the previous steps.
 
     Here, (1) is merged with (c)
 
-    o──┐
-    o──o──(1)──(c)──
-
-    Here, no merging will occur, because (c) has two incoming edges, and trying to merge it
-    would interfere with the branching.
-           o────┐
-    o──o──(1)──(c)──
+    o──┐                   o──┐
+    o──o──(1)──(c)──  →    o──o──(c)──
 
     """
 
@@ -299,8 +301,11 @@ def consolidate_network(G: nx.DiGraph, threshold_area: float or int) -> Tuple[nx
     Saves a record of nodes that have been merged in the dictionary MERGES that we will later
     use to dissolve their geometries (unit catchment polygons) in GeoPandas.
 
+    I thought that this would be a solved problem in hydrology, but I could not
+    find anything useful. So this is a novel, homebrew solution developed through trial and error!
+
     Inputs: G: graph of the river network. Nodes should have the attributes 'area' and 'length'
-      MERGES: a dictionary, can be empty, or may already exist if we call this funtion more than once.
+      MERGES: a dictionary, can be empty, or may already exist if we call this function more than once.
 
     Outputs:
         G, revised graph of the river network
@@ -312,7 +317,7 @@ def consolidate_network(G: nx.DiGraph, threshold_area: float or int) -> Tuple[nx
           This information is used for the DISSOLVE operation for the unit catchment polygons.
 
         rivers2merge: Similar to above, a dictionary with information on how to merge river reach
-        polylines. The key is is the id of deleted nodes, and the value is the id of the node
+        polylines. The key is the id of deleted nodes, and the value is the id of the node
         it will be merged with. Tracking these separately from unit catchments, because the merging
         rules are different! Again, relationship can be one to many.
 
@@ -332,21 +337,19 @@ def consolidate_network(G: nx.DiGraph, threshold_area: float or int) -> Tuple[nx
         print(f"Consolidating river network. Max. subbasin area: {threshold_area}")
         print('Iteration #1')
 
-    # Step 1, merge leaves!
+    # Step 1, merge leaves with their downstream node
     G, MERGES, rivers2merge, rivers2delete = trim_clusters(G, threshold_area, MERGES, rivers2merge, rivers2delete)
     if DRAW: draw_graph(G, filename='plots/test_pruned', title="Pruned Network after Step 1")
 
-    # Step 2, merge any stems
+    # Step 2, merge stems
     G, MERGES, rivers2merge = collapse_stems(G, threshold_area, MERGES, rivers2merge)
     if DRAW: draw_graph(G, filename='plots/test_step2', title="Stems merged, after Step 2")
 
-
-
-    # Step #4, prune small solo leaves
+    # Step #3, prune small solo leaves
     G, MERGES, rivers2merge, rivers2delete = prune_leaves(G, threshold_area, MERGES, rivers2merge, rivers2delete)
     if DRAW: draw_graph(G, filename='plots/test_step4', title="Small solo leaves pruned, after Step 4")
 
-    # Iterate through these steps until there are no more changes to the network
+    # Iterate through the consolidation steps until the network stops changing
     i = 1  # Counter to keep track of how many iterations we do
     while True:
         previous_num_nodes = G.number_of_nodes()
@@ -357,11 +360,11 @@ def consolidate_network(G: nx.DiGraph, threshold_area: float or int) -> Tuple[nx
         i += 1
         if VERBOSE: print(f"Iteration #{i}")
 
-        # When there is no change, stop iterating
+        # When there is no change in the number of nodes, we have converged on the final result and can stop iterating
         if num_nodes == previous_num_nodes:
             break
 
-    # Final step, takes care of the nodes immediately upstream of our gages
+    # Final step, takes care of any remaining small stem nodes
     G, MERGES, rivers2merge = last_merge(G, threshold_area, MERGES, rivers2merge)
 
     if DRAW:  draw_graph(G, filename='plots/test_step5', title="After iteration, Step 5")

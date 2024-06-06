@@ -9,7 +9,7 @@ outside of the sample data provided for Iceland.
 
 """
 
-# Directory containing the merged, basin-scale MERIT-Hydro flow direction rasters (.tif)
+# Directory (folder) containing the merged, basin-scale MERIT-Hydro flow direction rasters (.tif)
 # Download from https://mghydro.com/watersheds/rasters
 # For all paths, do not include a trailing slash.
 MERIT_FDIR_DIR = r"C:\Data\GIS\MERITHydro\flow_dir_basins"
@@ -23,11 +23,14 @@ MERIT_ACCUM_DIR = r"C:\Data\GIS\MERITHydro\accum_basins"
 # Set to True if you want the script to write status messages to the console
 VERBOSE = True
 
-# Set to True to make a bunch of plots of each watershed.
+# Set to True to make a bunch of plots of each watershed,  focused on the raster-based delineation.
 # (Mostly for debugging. Slows down the script a lot.)
 PLOTS = False
 
-# Set to true to output a network diagram of the river network.
+# Directory to put plots created by the script.
+PLOTS_DIR = 'plots'
+
+# Output a network diagram of the river network?
 # This is a simplified view of the flow pathways.
 # IMPORTANT: For this to work, you need to have GraphViz installed on your computer.
 #  (Not just the graphviz Python library, which lets you access its functions.)
@@ -51,7 +54,7 @@ OUTPUT_DIR = "output"
 #   "gpkg" for GeoPackage (recommended)
 #   "geojson" for GeoJSON files
 #   "shp" for shapefile
-# The list of possibilities depends one what is supported by GeoPandas.
+# The list of possibilities depends on what is currently supported by GeoPandas.
 # See: https://geopandas.org/en/stable/docs/user_guide/io.html#writing-spatial-data
 OUTPUT_EXT = "gpkg"
 
@@ -65,20 +68,25 @@ PICKLE_DIR = 'pkl'
 # Threshold for number of upstream pixels that defines a stream
 # These values worked will in my testing, but you might try changing if the
 # outlet is not getting snapped to a river centerline properly
-THRESHOLD_SINGLE = 500
-THRESHOLD_MULTIPLE = 5000
+THRESHOLD_SINGLE = 500     # Where the outlet is in a unit catchment without upstream neighbors; finds smaller streams.
+THRESHOLD_MULTIPLE = 5000  # Where the outlet is in a unit catchment with upstream neighbors; finds larger rivers.
 
 # Simplify the output geodata? This will remove some vertices
-# from the watershed boundary and river centerlines and produce smaller files.
+# from the watershed boundary polygons and river reach centerlines and produce smaller files  
+# However, it may also create topology problems -- misaligned edges, slivers, and dangles.
+# But the appearance may be jagged when zoomed in. Better results may be obtained with GIS or mapshaper.
 SIMPLIFY = True
 
 # If SIMPLIFY is True, set SIMPLIFY_TOLERANCE to a value in decimal degrees.
+# This is equivalent to the parameter epsilon in the Ramer–Douglas–Peucker algorithm
 SIMPLIFY_TOLERANCE = 0.0008
 
-# Do you wish to retun the whole watershed (a single polygon) for EACH individual the outlet point?
+# Do you wish to retun the whole watershed (a single polygon) for EACH individual outlet point?
+# If True the script will create files with names beginning with watershed_ in the output directory
 WATERSHEDS = False
 
-# Output all of the river polylines (even small ones). Perhaps useful for display and mapping.
+# Output a separate geodata file with ALL of the river polylines (even small ones)? 
+# This may be useful for display and mapping.
 OUTPUT_ALL_RIVERS = False
 
 # Watersheds created with Merit-Hydro data tend to have many "donut holes"
@@ -96,17 +104,12 @@ FILL = True
 # surface drainage patterns.)
 FILL_THRESHOLD = 100
 
-# Consolidate the sub-basins to make a larger size? If set to true, the script will
-# merge adjacent subbasins such that
-# (a) subbasins do not exceed a max. threshold area and
+# Consolidate the sub-basins to make them larger? If set to True, the script will
+# selectively merge adjacent subbasins such that:
+# (a) subbasins do not exceed a maximum area in MAX_AREA
 # (b) the network topology is maintained (overall connectivity of the flow network)
+# If you set MAX_AREA to a very high number, the network will be collapsed to the maximum
+# extent possible while maintaining subbasins for your outlets and the necessary junctions.
 
 CONSOLIDATE = True
-MAX_AREA = 300  # in km²
-
-# MERGE tiny junction nodes? Only activated when CONSOLIDATE == True.
-# TODO: NOT CURRENTLY IMPLEMENTED.
-# These sometimes occur around confluences, where two tributaries
-# join the mainstem close to one another. If you want to consider them joining at the same
-# location, set the length below, in km. If you don't want to do this, set it to a big number like 99999
-THRESHOLD_LENGTH = 2
+MAX_AREA = 1500  # in km²

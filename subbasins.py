@@ -10,7 +10,7 @@ Quick Start:
 First, set parameters in the file subbasins_config.py.
 
 Run this script from the command line with two required arguments:
-$ python subbsins.py outlets.csv testrun
+$ python subbasins.py outlets.csv testrun
 
 or with a full file path as follows on Windows or Linux:
 $ python subbasins.py C:\Users\matt\Desktop\outlets.csv test
@@ -88,7 +88,7 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
         if up4 != 0:
             addnode(B, up4)
 
-    # Make sure the user folders from `config.py` exist (for output & plots). If not create them.
+    # Make sure the user folders from `subbasins_config.py` exist (for output & plots). If not create them.
     make_folders()
 
     # Read the outlet points CSV file and put the data into a Pandas DataFrame
@@ -219,7 +219,7 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
     gages_gdf.set_crs(crs=PROJ_WGS84)
     gages_gdf.set_geometry(col="geometry")
 
-    # First, handle all of the gages where there is only one gage in a unit catchment (standard treatment)
+    # First, handle the gages where there is only one gage in a unit catchment (standard treatment)
     # These will always be upstream of the unit catchment that we are inserting it into
     # (a) insert a new row into subbasins
     if len(singles) > 0:
@@ -259,13 +259,14 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
                 myrivers_gdf.at[node, 'geometry'] = new_river
                 myrivers_gdf.at[node, 'lengthkm'] = length
 
-    # Next, handle the case where there are multiple gages in a unit catchment (special treatment)
-    # Handle these one target unit catchment at a time.
+    # Next, handle the case where there are multiple gages in a single unit catchment (special treatment)
+    # We need to handle these one unit catchment at a time.
     for comid in repeats:
-        # Find all of the gages that fall in this unit catchment.
+        # Find all the gages that fall in this unit catchment.
         gages_set = gages_gdf[gages_gdf['COMID'] == comid]
         gages_set.set_crs(crs=PROJ_WGS84)
-        # We want to handle these in order from smallest area to largest area
+        # We want to handle these in order from downstream to upstream.
+        # This is the same as smallest area to largest area
         gages_set.sort_values(by='unitarea', inplace=True)
         gages_set['nextdown'] = gages_set.index.to_series().shift(-1).fillna(comid)
         subbasins_gdf = pd.concat([subbasins_gdf, gages_set])
@@ -307,20 +308,22 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
         subbasins_gdf.loc[rows, 'nextdown'] = gages_set.index.to_list()[0]
 
         # Finally, we need to clip the geometry of the base unit catchment,
-        # unless that unit catchment is downstream of the outlet, in which case it is not to be included
-        # in the output
+        # unless that unit catchment is downstream of the terminal outlet, in which case
+        # this geometry will not to be include in the output
         if comid != terminal_comid:
-            current_polygon = subbasins_gdf.at[comid, 'geometry']
+            new_polygon = subbasins_gdf.at[comid, 'geometry']
             old_poly = current_polygon.difference(upstream_polygon)
             old_poly = fix_polygon(old_poly)
             subbasins_gdf.at[comid, 'geometry'] = old_poly
             area = calc_area(old_poly)
             subbasins_gdf.at[comid, 'unitarea'] = area
-            new_river = gpd.overlay(river_line, new_polygon, how='overlay')
+            new_river = river_line.intersection(new_polygon)
             myrivers_gdf.at[comid, 'geometry'] = new_river
             length = calc_length(new_river)
             myrivers_gdf.at[comid, 'lengthkm'] = length
 
+    # Now, we no longer need the downstream portion of the terminal unit catchment
+    # so remove its row from the subbasins GeoDataFrame
     subbasins_gdf = subbasins_gdf.drop(terminal_comid)
     subbasins_gdf.at[terminal_node_id, 'nextdown'] = 0
 
@@ -366,8 +369,8 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
         topo = topojson.Topology(myrivers_gdf, prequantize=False)
         myrivers_gdf = topo.toposimplify(SIMPLIFY_TOLERANCE).to_gdf()
 
-    # Add attributes for subbasin area and river reach length to the
-    # drainage netowork Graph
+    # Add attributes for subbasin area and river reach length to the Graph
+    # We will keep track of these quantities as we delete and merge nodes
     for node in list(G.nodes):
         area = subbasins_gdf.at[node, 'unitarea']
         G.nodes[node]['area'] = round(area, 1)
@@ -377,8 +380,8 @@ def delineate(INPUT_CSV: str, OUTPUT_PREFIX: str):
             length = 0
         G.nodes[node]['length'] = round(length, 1)
 
-    # If the user wants larger subbasins, we can expand merge adjacent unit catchments.
-    # Has to be done carefully. I call it consolidating the network.
+    # If the user wants larger subbasins, we can merge adjacent unit catchments.
+    # I call this "consolidating the river network."
     if CONSOLIDATE:
         G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=MAX_AREA)
         if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{OUTPUT_PREFIX}_network_final')
@@ -555,7 +558,7 @@ def _run():
 
 def test():
     # Run directly, for convenience or during development and debugging
-    input_csv = 'test-outlets.csv'
+    input_csv = 'outlets.csv'
     out_prefix = 'iceland'
     delineate(input_csv, out_prefix)
 

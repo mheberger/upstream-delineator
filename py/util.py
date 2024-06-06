@@ -13,7 +13,7 @@ import re
 import pickle
 import warnings
 import matplotlib.pyplot as plt
-from subbasins_config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, RIVERS_DIR, CATCHMENTS_DIR
+from subbasins_config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, RIVERS_DIR, CATCHMENTS_DIR, PLOTS_DIR
 from numpy import random
 
 # The WGS84 projection string, used in a few places
@@ -99,36 +99,6 @@ def find_repeated_elements(lst: list) -> list:
         else:
             seen.add(elem)
     return list(duplicates)
-
-
-def find_repeats_with_frequency(lst: list) -> dict:
-    r"""
-    Finds repeated elements in a list with their frequency
-    > lst = list('collections')
-    ['c', 'o', 'l', 'l', 'e', 'c', 't', 'i', 'o', 'n', 's']
-    > find_repeats_with_frequency(lst)
-    {'c': 2, 'o': 2, 'l': 2}
-    """
-    # Count the elements in the list
-    element_count = Counter(lst)
-
-    # Filter elements that are repeated
-    repeated_elements = {element: count for element, count in element_count.items() if count > 1}
-    return repeated_elements
-
-
-def decrement_repeats_dict(dictionary: dict, key) -> dict:
-    """
-    Works with the dictionary of repeats with frequency created above.
-    Decrements an entry based on its key. Each time it is called,
-    the value decreases by one. When the value gets to one, the entry is removed
-    (because it is no longer a duplicate or repeated entry!)
-    """
-    if key in dictionary:
-        dictionary[key] -= 1
-        if dictionary[key] == 1:
-            del dictionary[key]
-    return dictionary
 
 
 def mround(match):
@@ -282,7 +252,8 @@ def load_megabasins() -> gpd.GeoDataFrame:
 
         # Try saving to a pickle file for future speedups
         if len(PICKLE_DIR) > 0:
-            make_folders()
+            # Recall that the latest versions of GeoPandas create spatial indices automatically
+            if VERBOSE: print("Saving megabasins GeoDataFrame to pickle file.")
             pickle.dump(megabasins_gdf, open(pickle_fname, "wb"))
 
     return megabasins_gdf
@@ -311,6 +282,12 @@ def get_megabasin(points_gdf) -> int:
     basins_df = gages_basins_join.groupby("BASIN").id.nunique()
     basins = basins_df.index.tolist()
 
+    # If the points are not in ANY megabasin
+    if len(basins) == 0:
+        print(f"ERROR: Your watershed outlets do not fall inside any of the continental-scale megabasins. "
+          f"Fix before continuing.")
+        raise Exception
+
     # If the points fall in more than one megabasin, not possible to process: Raise Error
     if len(basins) > 1:
         print(f"ERROR: Your watershed outlets are in {len(basins)} continental-scale megabasin(s). "
@@ -328,17 +305,17 @@ def make_folders():
     If it cannot find the folder, and it cannot create the folder, the
     function will raise an error.
 
-    :return: Nothing, but throws an error if fails.
+    :return: Nothing, but throws an error if it fails.
     """
     # Check that the OUTPUT directories are there. If not, try to create them.
-    folder_exists = create_folder_if_not_exists(OUTPUT_DIR)
-    if not folder_exists:
-        raise Exception(f"No folder for output. Stopping")
-    # Check for the folder to put Python PICKLE files
-    if PICKLE_DIR != "":
-        folder_exists = create_folder_if_not_exists(OUTPUT_DIR)
+    folders = [OUTPUT_DIR, PLOTS_DIR, PICKLE_DIR]
+    for folder in folders:
+        if folder == '':
+            continue
+        else:
+            folder_exists = create_folder_if_not_exists(folder)
         if not folder_exists:
-            raise Exception(f"No folder for pickle files. Stopping")
+            raise Exception(f"Could not create folder `{folder}`. Stopping")
 
 
 def get_pickle_filename(geotype: str, basin: int, high_resolution: bool) -> str:
@@ -491,7 +468,7 @@ def plot_basins(basins_gdf: gpd.GeoDataFrame, outlets_gdf: gpd.GeoDataFrame, fna
     # Plot the gage points
     outlets_gdf.plot(ax=ax, c='red', edgecolors='black')
 
-    plt.savefig(f"plots/{fname}.png")
+    plt.savefig(f"{PLOTS_DIR}/{fname}.png")
     plt.close(fig)
 
 
