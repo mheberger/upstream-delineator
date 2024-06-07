@@ -46,6 +46,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 PIXEL_AREA = 0.000000695  # Constant for the area of a single pixel in MERIT-Hydro, in decimal degrees
 AREA_MAX = FILL_THRESHOLD * PIXEL_AREA
 
+
 def delineate(input_csv: str, output_prefix: str):
     """
     Finds the watershed for a set of outlets.
@@ -67,8 +68,8 @@ def delineate(input_csv: str, output_prefix: str):
     def addnode(B: list, node_id):
         """"
         Recursive function to assemble the list of upstream unit catchments
-        upstream_comids is a Python List of the unit catchments that make up our watershed.
-        upstream_comids is for BASIN...
+        B is a Python List of the unit catchments that make up our watershed.
+        B is for BASIN...
         List items are `comid`s, unique identifiers of each unit catchment.
 
         """
@@ -413,7 +414,7 @@ def delineate(input_csv: str, output_prefix: str):
         G.nodes[node]['area'] = round(area, 1)
         try:
             length = myrivers_gdf.at[node, 'lengthkm']
-        except:
+        except Exception:
             length = 0
         G.nodes[node]['length'] = round(length, 1)
 
@@ -450,7 +451,7 @@ def delineate(input_csv: str, output_prefix: str):
         for idx in subbasins_gdf.index:
             try:
                 nextdown = list(G.successors(idx))[0]
-            except:
+            except Exception:
                 nextdown = 0
             subbasins_gdf.at[idx, 'nextdown'] = nextdown
 
@@ -479,14 +480,14 @@ def delineate(input_csv: str, output_prefix: str):
     # terminal unit catchment, as we no longer need it.
     try:
         myrivers_gdf.drop(terminal_comid, inplace=True)
-    except:
+    except Exception:
         pass
 
     # Add the fields `nextdown` and the stream orders to the rivers.
     for idx in myrivers_gdf.index:
         try:
             nextdown = list(G.successors(idx))[0]
-        except:
+        except Exception:
             nextdown = 0
         myrivers_gdf.at[idx, 'nextdown'] = nextdown
         myrivers_gdf.at[idx, 'strahler_order'] = G.nodes[idx]['strahler_order']
@@ -511,7 +512,7 @@ def delineate(input_csv: str, output_prefix: str):
     # Before exporting geodata, make 'comid' a regular column
     try:
         subbasins_gdf.drop(columns=['COMID'], inplace=True)
-    except:
+    except Exception:
         pass
 
     subbasins_gdf.reset_index(inplace=True)
@@ -524,7 +525,7 @@ def delineate(input_csv: str, output_prefix: str):
             "maxup", "up1", "up2", "up3", "up4", "end_point", "lat", "lng"]
     try:
         myrivers_gdf.drop(columns=cols, inplace=True)
-    except:
+    except Exception:
         pass
 
     # Finally, write the results to disk
@@ -635,8 +636,8 @@ def _run():
 
 def test():
     # Run directly, for convenience or during development and debugging
-    input_csv = 'test_inputs/missou.csv'
-    out_prefix = 'missou'
+    input_csv = 'test_inputs/duro.csv'
+    out_prefix = 'duro'
     delineate(input_csv, out_prefix)
 
 

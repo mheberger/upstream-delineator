@@ -35,7 +35,7 @@ def show_area_stats(G: nx.Graph) -> None:
     print(f"n  | Median | Mean | Std. Dev. | CV  | Skew")
     print(f"{n},    {median_area:.3g},   {mean_area:.3g},    {std_area:.3g},   {cv:.3g},   {skewness:.3g}")
 
-    AREA_HISTOGRAMS = False
+    AREA_HISTOGRAMS = True
     if AREA_HISTOGRAMS:
         plt.hist(areas, bins='auto', edgecolor='black')
         plt.title('Histogram of Areas')
@@ -128,7 +128,12 @@ def collapse_stems(G: nx.DiGraph, max_area: int or float, MergesDict: dict, rive
     Its river reach polyline will be merged with the downstream node's river reach.
     """
 
-    stems = [node for node in G.nodes if G.in_degree(node) < 2 and 'custom' not in G.nodes[node]]
+    stems1 = [node for node in G.nodes if G.in_degree(node) < 2 and 'custom' not in G.nodes[node]]
+
+    # Sort the stem nodes from small to large so we remove small ones first, and end up with
+    # more uniform subbasin sizes.
+    stems = sorted(stems1, key=lambda node: G.nodes[node]['area'], reverse=True)
+
     for stem in stems:
         if G.has_node(stem):
 
@@ -253,7 +258,13 @@ def last_merge(G: nx.DiGraph, threshold_area: int or float, MERGES: dict, rivers
 
     """
 
-    nodes = [node for node in G.nodes if G.in_degree(node) == 1]
+    nodes1 = [node for node in G.nodes if G.in_degree(node) == 1]
+
+    # Step 2: Sort these nodes by their 'area' attribute
+    # Do this because we generally want to merge the small ones first, before the big ones,
+    # so that are eventual node sizes are more uniform.
+    nodes = sorted(nodes1, key=lambda node: G.nodes[node]['area'])
+
     for node in nodes:
         if G.has_node(node):
 

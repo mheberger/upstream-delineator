@@ -163,6 +163,8 @@ an alphanumeric string. The id may be any length, but shorter is better.
 The script uses the id as the filename for output, so avoid using any 
 forbidden characters. On Linux, do not use the forward slash /. 
 On Windows, the list of forbidden characters is slightly longer (`\< \> : " / \ | ? \*`).
+Also, do not use id = 0, since the convention is that 0 is reserved for discharging to
+the ocean.
 
 - **lat** - _required_: latitude in decimal degrees of the watershed outlet.
 Avoid using a whole number without a decimal in the first row. 
