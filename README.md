@@ -85,7 +85,7 @@ software as well). Go to: [https://graphviz.org/download/](https://graphviz.org/
 During the installation, make sure you add GraphViz to the system path. 
 
 The script will make these diagrams if you set the variable `NETWORK_DIAGRAMS = True` 
-in `subbasins_config.py`. 
+in `config.py`. 
 
 
 # Overview of using `subbasins.py`
@@ -98,7 +98,7 @@ data as described in steps 1 and 2.
 1. [Download basin-scale MERIT-Hydro raster data (mghydro.com)](#step1)
 2. [Download MERIT-Basins vector data (reachhydro.com)](#step2)
 3. [Create a CSV file with your desired watershed outlet points](#step4)
-4. [Edit settings in `subbasins_config.py`](#step5)
+4. [Edit settings in `config.py`](#step5)
 5. [Run `subbasins.py` to delineate watersheds](#step6)
 6. [Review output](#step7)
 7. [Run again to fix mistakes (repeat steps 4 – 7)](#step8)
@@ -121,7 +121,7 @@ layers that cover entire river basins. I have already done the work of merging t
 raster data files. You can freely download them here:
 [https://mghydro.com/watersheds/rasters](https://mghydro.com/watersheds/rasters)
 
-You will need to update `subbasins_config.py` to tell the script where to find these data files. 
+You will need to update `config.py` to tell the script where to find these data files. 
 Modify these variables:
 
 - `MERIT_FDIR_DIR` (for flow direction)
@@ -147,7 +147,7 @@ depending on your region of interest.
 errors for some reason.)
 
 Unzip these files and save them to a folder on your hard drive. 
-Then, in `subbasins_config.py`, update the variables 
+Then, in `config.py`, update the variables 
 `CATCHMENTS_DIR` and `RIVERS_DIR` to tell the script where to find these data.
 
 ## <a name="step4">3. Create a CSV file with your desired watershed outlet points</a>
@@ -181,7 +181,7 @@ All latitude and longitude coordinates should be in decimal degrees
 or, in other words, which are contained in the first point's watershed.
 
 
-## <a name="step5">4. Update `subbasins_config.py`</a>
+## <a name="step5">4. Update `config.py`</a>
 
 Read through the options and set the variables as you wish. 
 Make sure to set the correct folder paths to where you are storing 
@@ -189,7 +189,7 @@ the input data on your computer.
 
 ## <a name="step6">5. Run `subbasins.py` to delineate watersheds</a>
 
-Once you have downloaded the datasets listed above, and updated `subbasins_config.py`, 
+Once you have downloaded the datasets listed above, and updated `config.py`, 
 you are ready to delineate watersheds. The script takes exactly two arguments:
 
 `input_csv` - Input CSV filename, for example `outlets.csv`
@@ -266,7 +266,7 @@ As an alternative, GIS software like QGIS (free) or ArcGIS (commercial) do the j
 # Outputting larger subbasins
 
 The unit catchments in MERIT-Basins have an average size of around 40 km². If you wish to create
-larger subbasins, in `subbasins_config.py`, set the variable `CONSOLIDATE = True`.
+larger subbasins, in `config.py`, set the variable `CONSOLIDATE = True`.
 Then, set a value for `MAX_AREA` in km². This sets the upper limit on the size of subbasins.
 The script will merge unit catchments such that the overall structure
 and connectivity of the drainage network is maintained. This example shows the subbasins

@@ -13,7 +13,7 @@ import re
 import pickle
 import warnings
 import matplotlib.pyplot as plt
-from subbasins_config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, RIVERS_DIR, CATCHMENTS_DIR, PLOTS_DIR
+from config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, RIVERS_DIR, CATCHMENTS_DIR, PLOTS_DIR
 from numpy import random
 
 # The WGS84 projection string, used in a few places
@@ -180,7 +180,7 @@ def calc_area(poly: Polygon) -> float:
     projected_poly = shapely.ops.transform(
         partial(
             pyproj.transform,
-            pyproj.Proj(init='EPSG:4326'),
+            pyproj.Proj(init=PROJ_WGS84),
             pyproj.Proj(
                 proj='aea',
                 lat_1=poly.bounds[1],
@@ -209,7 +209,7 @@ def calc_length(line: LineString) -> float:
     projected_line = shapely.ops.transform(
         partial(
             pyproj.transform,
-            pyproj.Proj(init='EPSG:4326'),
+            pyproj.Proj(init=PROJ_WGS84),
             pyproj.Proj(
                 proj='aea',
                 lat_1=line.bounds[1],
@@ -236,18 +236,18 @@ def load_megabasins() -> gpd.GeoDataFrame:
     # Check whether the pickle file exists
     pickle_fname = f"{PICKLE_DIR}/megabasins.pkl"
     if os.path.isfile(pickle_fname):
-        if VERBOSE: print(f"Loading Megabasins from Pickle File")
+        if VERBOSE: print("Loading Megabasins from Pickle File")
         gdf = pickle.load(open(pickle_fname, "rb"))
         return gdf
     else:
         # This file has the merged "megabasins_gdf" in it
-        if VERBOSE: print(f"Reading Megabasins shapefile")
+        if VERBOSE: print("Reading Megabasins shapefile")
         merit_basins_shp = 'data/shp/basins_level2/merit_hydro_vect_level2.shp'
         megabasins_gdf = gpd.read_file(merit_basins_shp)
 
         # The CRS string in the shapefile is EPSG 4326 but does not match verbatim, so set it here
         megabasins_gdf.to_crs(PROJ_WGS84, inplace=True)
-        if not megabasins_gdf.loc[0].BASIN == 11:
+        if megabasins_gdf.loc[0].BASIN != 11:
             raise Exception("An error occurred loading the Level 2 basins shapefile")
 
         # Try saving to a pickle file for future speedups
@@ -267,6 +267,7 @@ def get_megabasin(points_gdf) -> int:
     Returns:
         the ID of the megabasin, an integer from 11 to 91
     """
+
     megabasins_gdf = load_megabasins()
     if VERBOSE: print("Finding out which Pfafstetter Level 2 'megabasin' your outlets are in")
 
@@ -276,7 +277,7 @@ def get_megabasin(points_gdf) -> int:
 
     # Needed to set this option in order to avoid a warning message in Geopandas.
     # https://stackoverflow.com/questions/20625582/how-to-deal-with-settingwithcopywarning-in-pandas
-    pd.options.mode.chained_assignment = None  # default='warn'
+    pd.options.mode.chained_assignment = None
 
     # Get a list of the DISTINCT Level 2 basins, and a count of how many gages in each.
     basins_df = gages_basins_join.groupby("BASIN").id.nunique()
@@ -284,8 +285,8 @@ def get_megabasin(points_gdf) -> int:
 
     # If the points are not in ANY megabasin
     if len(basins) == 0:
-        print(f"ERROR: Your watershed outlets do not fall inside any of the continental-scale megabasins. "
-          f"Fix before continuing.")
+        print("ERROR: Your watershed outlets do not fall inside any of the continental-scale megabasins. "
+          "Fix before continuing.")
         raise Exception
 
     # If the points fall in more than one megabasin, not possible to process: Raise Error
@@ -359,7 +360,7 @@ def load_gdf(geotype: str, basin: int, high_resolution: bool) -> gpd.GeoDataFram
     if PICKLE_DIR != '':
         pickle_fname = get_pickle_filename(geotype, basin, high_resolution)
         if os.path.isfile(pickle_fname):
-            if VERBOSE: print(f"Fetching BASIN # {basin} catchment data from pickle file.")
+            if VERBOSE: print(f"Loading BASIN # {basin} catchment data from pickle file.")
             gdf = pickle.load(open(pickle_fname, "rb"))
             return gdf
 
@@ -401,11 +402,11 @@ def save_pickle(geotype: str, gdf: gpd.GeoDataFrame, basin: int, high_resolution
             if VERBOSE: print(f"Saving GeoDataFrame to pickle file: {pickle_fname}")
             try:
                 pickle.dump(gdf, open(pickle_fname, "wb"))
-            except:
+            except Exception:
                 raise Warning("Could not save pickle file to: {pickle_fname}")
 
 
-def fix_polygon(poly: Polygon or MultiPolygon) -> Polygon:
+def fix_polygon(poly: Polygon or MultiPolygon) :
     """
     When we use the difference() method in Shapely to subtract one polygon from another,
     it's common to end up with small slivers or unwanted geometries around the edges of
@@ -413,13 +414,22 @@ def fix_polygon(poly: Polygon or MultiPolygon) -> Polygon:
     To eliminate these small slivers, we can use a combination of simplification and filtering based on area.
 
     input: a Shapely Polygon or MultiPolygon
-    output: a Shapely Polygon that has been fixed to remove small slivers.
+    output: a Shapely Polygon or MultiPolygon that has been fixed to remove small slivers.
     """
-    simplify_tolerance = 0.0001
+    simplify_tolerance = 0.00001
     simplified_poly = poly.simplify(tolerance=simplify_tolerance, preserve_topology=True)
 
+    # Try buffering?
+    #buffered = simplified_poly.buffer(simplify_tolerance)
+
+    # Merge the buffered polygons
+    #merged = shapely.ops.unary_union(buffered)
+
+    # Remove the buffer by shrinking back
+    #final_merged = merged.buffer(-simplify_tolerance)
+
     # Filter out small slivers by area
-    min_area_threshold = 0.0001  # Define your own threshold
+    min_area_threshold = 0.00001  # Define your own threshold
 
     # Handle MultiPolygon and Polygon cases
     if simplified_poly.geom_type == 'Polygon':

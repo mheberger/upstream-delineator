@@ -112,4 +112,4 @@ FILL_THRESHOLD = 100
 # extent possible while maintaining subbasins for your outlets and the necessary junctions.
 
 CONSOLIDATE = True
-MAX_AREA = 1500  # in km²
+MAX_AREA = 15000  # in km²

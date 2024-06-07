@@ -3,6 +3,8 @@ import graphviz
 from PIL import Image
 
 
+PLOT_AREA = False
+
 def area_to_size(area, max_area):
     if max_area is None:
         return 10
@@ -44,17 +46,15 @@ def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph", vertic
 
     # Add nodes with distance attributes as labels
     for node in G.nodes():
-        if str(node)[0:2] == '27':
-            label = str(node)[-4:]
-        else:
-            label = f"{node}"
+        label = f"{node}"
 
-        if 'area' in G.nodes[node]:
-            area = round(G.nodes[node]['area'])
-            label = f"{label}\n{area}"
-            size = area_to_size(G.nodes[node]['area'], max_area)
-            size = str(round(size, 1))
-            dot.node(str(node), width=size, height=size, fixedsize='true')
+        if PLOT_AREA:
+            if 'area' in G.nodes[node]:
+                area = round(G.nodes[node]['area'])
+                label = f"{label}\n{area}"
+                size = area_to_size(G.nodes[node]['area'], max_area)
+                size = str(round(size, 1))
+                dot.node(str(node), width=size, height=size, fixedsize='true')
 
         if G.nodes[node].get('custom'):
             dot.node(str(node), label=label, style='filled', fillcolor='lightblue', fontname='Arial')
@@ -66,10 +66,10 @@ def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph", vertic
         dot.edge(str(u), str(v))
 
     # Save the graph as a file and render it
-    dot.render(filename, format='png', cleanup=True)
+    dot.render(filename, format='jpg', cleanup=True)
 
     # Display the graph using PIL
-    image = Image.open(filename + ".png")
+    image = Image.open(filename + ".jpg")
     image.show()
 
 

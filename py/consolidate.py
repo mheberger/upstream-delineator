@@ -5,7 +5,7 @@ import networkx as nx
 from py.plot_network import draw_graph
 from py.graph_tools import *
 import numpy as np
-from subbasins_config import VERBOSE
+from config import VERBOSE
 from scipy.stats import skew
 import matplotlib.pyplot as plt
 from typing import Tuple
@@ -228,6 +228,7 @@ def prune_leaves(G: nx.DiGraph,
                         del rivers2merge[leaf]
 
     G = calculate_shreve_stream_order(G)
+    G = calculate_strahler_stream_order(G)
     return G, MergesDict, rivers2merge, rivers2delete
 
 
@@ -252,7 +253,7 @@ def last_merge(G: nx.DiGraph, threshold_area: int or float, MERGES: dict, rivers
 
     """
 
-    nodes = [node for node in G.nodes if G.in_degree(node) == 1 and 'custom' in G.nodes[node]]
+    nodes = [node for node in G.nodes if G.in_degree(node) == 1]
     for node in nodes:
         if G.has_node(node):
 
@@ -374,23 +375,24 @@ def consolidate_network(G: nx.DiGraph, threshold_area: float or int) -> Tuple[nx
 
 
 def test2():
-    fname = 'output/gen_graph.pkl'
+    fname = '../output/iceland_graph.pkl'
     G = pickle.load(open(fname, "rb"))
     # Set a threshold for merging (e.g., 100 for the sum of areas)
     threshold_area = 500
     G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=threshold_area)
     print(G.number_of_nodes())
+    draw_graph(G, 'temp')
 
 def test():
     # Testing alt. version of step 2.
-    fname = '../output/gen_graph.pkl'
+    fname = '../output/iceland_graph.pkl'
     G = pickle.load(open(fname, "rb"))
     MAX_AREA = 1500
     MERGES = {}
     rivers2merge = {}
     rivers2delete = []
-    G, MERGES, rivers2merge, rivers2delete = prune_leaves(G, MAX_AREA, MERGES, rivers2merge, rivers2delete)
-    draw_graph(G, 'test')
+    G, MERGES, rivers2merge = last_merge(G, MAX_AREA, MERGES, rivers2merge)
+    draw_graph(G, 'temp')
 
 
 if __name__ == "__main__":
