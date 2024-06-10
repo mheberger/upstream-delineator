@@ -312,7 +312,7 @@ location by changing the latitude and/or longitude slightly.
 
 As another example, if you put two points in your input file that are the same, or very close
 to one another, the script will fail and the error messages will not be very helpful. Please
-makes sure all of your points have a little space between them!
+make sure all of your points have a little space between them!
 
 ![Illustration of problem with outlet point falling into a gap](img/karthaus_example.jpg)
 
@@ -331,15 +331,6 @@ and then do a pull request on GitHub.
 # Acknowledgments
 
 This code was developed with support from [Upstream Tech](https://www.upstream.tech/).
-
-
-# Potential Enhancements
-
-Enable PostGIS support -- Among the slowest steps in this script are reading 
-geodata files from disk performing overlay analyses. If the user
-has PostgreSQL and PostGIS installed, this analysis could be done much faster
-using PostGIS queries.  
-
 
 
 
