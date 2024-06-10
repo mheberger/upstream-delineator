@@ -9,38 +9,24 @@ outside of the sample data provided for Iceland.
 
 """
 
-# Directory (folder) containing the merged, basin-scale MERIT-Hydro flow direction rasters (.tif)
-# Download from https://mghydro.com/watersheds/rasters
-# For all paths, do not include a trailing slash.
-MERIT_FDIR_DIR = r"C:\Data\GIS\MERITHydro\flow_dir_basins"
-# MERIT_FDIR_DIR = "data/raster/flowdir_basins"
-
-# Directory containing the merged, basin-scale MERIT-Hydro flow accumulation rasters (.tif)
-# Download from https://mghydro.com/watersheds/rasters
-MERIT_ACCUM_DIR = r"C:\Data\GIS\MERITHydro\accum_basins"
-# MERIT_ACCUM_DIR = "data/raster/accum_basins"
-
 # Set to True if you want the script to write status messages to the console
 VERBOSE = True
 
-# Set to True to make a bunch of plots of each watershed,  focused on the raster-based delineation.
-# (Mostly for debugging. Slows down the script a lot.)
-PLOTS = False
+# Directory (folder) containing the merged, basin-scale MERIT-Hydro flow direction rasters (.tif)
+# Download from https://mghydro.com/watersheds/rasters
+# For all paths, do not include a trailing slash.
+# MERIT_FDIR_DIR = r"C:\Data\GIS\MERITHydro\flow_dir_basins"
+MERIT_FDIR_DIR = "data/raster/flowdir_basins"
 
-# Directory to put plots created by the script.
-PLOTS_DIR = 'plots'
-
-# Output a network diagram of the river network?
-# This is a simplified view of the flow pathways.
-# IMPORTANT: For this to work, you need to have GraphViz installed on your computer.
-#  (Not just the graphviz Python library, which lets you access its functions.)
-#  Download installers here: https://graphviz.org/download/
-NETWORK_DIAGRAMS = True
+# Directory containing the merged, basin-scale MERIT-Hydro flow accumulation rasters (.tif)
+# Download from https://mghydro.com/watersheds/rasters
+# MERIT_ACCUM_DIR = r"C:\Data\GIS\MERITHydro\accum_basins"
+MERIT_ACCUM_DIR = "data/raster/accum_basins"
 
 # Folder where you have stored the Merit-BASINS unit catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins
-CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
-# CATCHMENTS_DIR = "data/shp/merit_catchments"
+# CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
+CATCHMENTS_DIR = "data/shp/merit_catchments"
 
 
 # Folder where you have stored the MERIT-Basins River flowline shapefiles
@@ -57,6 +43,13 @@ OUTPUT_DIR = "output"
 # The list of possibilities depends on what is currently supported by GeoPandas.
 # See: https://geopandas.org/en/stable/docs/user_guide/io.html#writing-spatial-data
 OUTPUT_EXT = "gpkg"
+
+# Set to True to make a bunch of plots of each watershed,  focused on the raster-based delineation.
+# (Mostly for debugging. Slows down the script a lot.)
+PLOTS = False
+
+# Directory to put plots created by the script.
+PLOTS_DIR = 'plots'
 
 # Directory to store Python pickle files. It can be slow for Python to
 # read shapefiles and create a GeoDataFrame. Once you have done this once, you
@@ -83,11 +76,11 @@ SIMPLIFY_TOLERANCE = 0.0008
 
 # Do you wish to retun the whole watershed (a single polygon) for EACH individual outlet point?
 # If True the script will create files with names beginning with watershed_ in the output directory
-WATERSHEDS = False
+WATERSHEDS = True
 
 # Output a separate geodata file with ALL of the river polylines (even small ones)? 
 # This may be useful for display and mapping.
-OUTPUT_ALL_RIVERS = False
+OUTPUT_ALL_RIVERS = True
 
 # Watersheds created with Merit-Hydro data tend to have many "donut holes"
 # ranging from one or two pixels to much larger. Setting FILL = True, will
@@ -112,4 +105,21 @@ FILL_THRESHOLD = 100
 # extent possible while maintaining subbasins for your outlets and the necessary junctions.
 
 CONSOLIDATE = True
-MAX_AREA = 300  # in km²
+MAX_AREA = 500  # in km²
+
+# Output a network diagram of the river network?
+# This is a simplified view of the flow pathways.
+# IMPORTANT: For this to work, you need to have GraphViz installed on your computer.
+#  (Not just the graphviz Python library, which lets you access its functions.)
+#  Download installers here: https://graphviz.org/download/
+NETWORK_DIAGRAMS = True
+
+# See a list of available formats here: https://graphviz.org/docs/outputs/
+DIAGRAM_FORMAT = 'pdf'
+
+# Show the area of unit catchments on the network diagram (in the label, and size of bubble)?
+# If you are plotting a large river basins, the diagram can be very large, so better to choose
+SHOW_AREA = False
+
+# Make the river network diagram vertical (top to bottom). If false, plot will be left to right.
+VERTICAL_PLOT = True

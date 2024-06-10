@@ -1,9 +1,8 @@
 import networkx as nx
 import graphviz
 from PIL import Image
+from config import SHOW_AREA, VERTICAL_PLOT, DIAGRAM_FORMAT
 
-
-PLOT_AREA = False
 
 def area_to_size(area, max_area):
     if max_area is None:
@@ -13,7 +12,7 @@ def area_to_size(area, max_area):
     return size
 
 
-def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph", vertical=False):
+def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph"):
     """
     Plots a NetworkX directed acyclic graph (dag)
     using the GraphViz library. Note that you need to install this software and it needs to be
@@ -35,7 +34,7 @@ def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph", vertic
         max_area = None
 
     # Initialize a new directed graph in Graphviz
-    if vertical:
+    if VERTICAL_PLOT:
         dot = graphviz.Digraph()
     else:
         dot = graphviz.Digraph(graph_attr={'rankdir': 'LR'})
@@ -48,7 +47,7 @@ def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph", vertic
     for node in G.nodes():
         label = f"{node}"
 
-        if PLOT_AREA:
+        if SHOW_AREA:
             if 'area' in G.nodes[node]:
                 area = round(G.nodes[node]['area'])
                 label = f"{label}\n{area}"
@@ -66,11 +65,11 @@ def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph", vertic
         dot.edge(str(u), str(v))
 
     # Save the graph as a file and render it
-    dot.render(filename, format='jpg', cleanup=True)
+    dot.render(filename, format=DIAGRAM_FORMAT, cleanup=True)
 
     # Display the graph using PIL
-    image = Image.open(filename + ".jpg")
-    image.show()
+    # image = Image.open(filename + "." + DIAGRAM_FORMAT)
+    # image.show()
 
 
 if __name__ == "__main__":
