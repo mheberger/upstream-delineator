@@ -389,6 +389,8 @@ def delineate(input_csv: str, output_prefix: str):
 
     if VERBOSE: print("Ran succesfully!")
 
+    return G
+
 
 def update_split_catchment_geo(gage_id, gages_gdf, myrivers_gdf, rivers_gdf, subbasins_gdf):
     # Handle the case where we had more than one gage point in a single unit catchment.
