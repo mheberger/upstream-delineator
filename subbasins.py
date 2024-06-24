@@ -20,8 +20,6 @@ or in Python as follows:
 >> from subbasins import delineate
 >> delineate('outlets.csv', 'testrun')
 
-TODO: In the stem merge steps, sort by area, low to high, so that the small ones get merged first before the big ones.
- (to see if this makes the subbasin sizes slightly more homogeneous)
 """
 
 # Standard Python libraries. See requirements.txt for recommended versions.
@@ -29,15 +27,24 @@ import argparse
 import sys
 from shapely.geometry import Point
 import topojson
+import warnings
 
 # My stuff
 from config import *  # This file contains a bunch of variables to be set before running this script
 from py.consolidate import consolidate_network, show_area_stats
-from py.util import *  # Contains a bunch of functions
-from py.graph_tools import *  # Functions for working with river network information as a Python NetworkX graph
+from py.util import make_folders, get_megabasins, load_gdf, plot_basins, calc_area, \
+    find_repeated_elements, fix_polygon, calc_length, validate, save_network, \
+    write_geodata, PROJ_WGS84  # Contains a bunch of functions
+from py.graph_tools import make_river_network, calculate_strahler_stream_order, calculate_shreve_stream_order, \
+    prune_node, upstream_nodes  # Functions for working with river network information as a Python NetworkX graph
 from py.merit_detailed import split_catchment
 from py.plot_network import draw_graph
 from py.fast_dissolve import dissolve_geopandas, buffer, close_holes
+
+from os.path import isfile
+import geopandas as gpd
+import pandas as pd
+import networkx as nx
 
 # Shapely throws a bunch of FutureWarnings. Safe to ignore for now, as long as we
 # are using a virtual environment, and use the library versions in requirements.txt.
@@ -45,6 +52,29 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 
 PIXEL_AREA = 0.000000695  # Constant for the area of a single pixel in MERIT-Hydro, in decimal degrees
 FILL_AREA_MAX = FILL_THRESHOLD * PIXEL_AREA
+
+
+def get_wshed_rows(df: gpd.GeoDataFrame, outlet):
+    """
+    Extracts rows of the gages GeoDataFrame for an outlet and any upstream points.
+
+    """
+    start_index = df[df['id'] == outlet].index[0]
+
+    # Slice the DataFrame from the start_index to the end
+    subset_df = df.iloc[start_index:]
+
+    # Find the index of the first row where is_outlet is True
+    indices = list(subset_df[subset_df['is_outlet'] == True].index)
+
+    if len(indices) > 1:
+        end_index = indices[1] - 1
+        # Select all rows from start_index to end_index (inclusive)
+        result_df = subset_df.loc[0:end_index]
+    else:
+        result_df = subset_df
+
+    return result_df
 
 
 def delineate(input_csv: str, output_prefix: str):
@@ -63,6 +93,81 @@ def delineate(input_csv: str, output_prefix: str):
     Outputs geodata (.shp, .gpkg, etc.) and optionally a CSV file with a summary of results
     (including the watershed id, names, and areas).
 
+    """
+
+    # Make sure the user folders from `config.py` exist (for output & plots). If not create them.
+    make_folders()
+
+    # Read the outlet points CSV file and put the data into a Pandas DataFrame
+    # (I call the outlet points gages, because I usually in delineated watersheds at streamflow gages)
+    gages_gdf = make_gages_gdf(input_csv)
+
+    # Create a filtered version with only the *outlets*
+    outlets_gdf = gages_gdf[gages_gdf['is_outlet'] == True]
+
+    # Get the megabasin(s) in which the points are located
+    # This returns a dictionary. Key: megabasin, Value: list of outlets that are in the megabasin
+    # This way, we can process the gages one megabasin at a time, so we only have to read geodata files once.
+    gage_basins_dict = get_megabasins(outlets_gdf)
+
+    G = None
+    subbasins_gdf = None
+    myrivers_gdf = None
+
+    # Iterate over the megabasins
+    for megabasin in gage_basins_dict.keys():
+        # Iterate over the outlets:
+        outlets = gage_basins_dict[megabasin]
+
+        if VERBOSE: print('Reading geodata for unit catchments in megabasin %s' % megabasin)
+        catchments_gdf = load_gdf("catchments", megabasin, True)
+
+        # The _network_ data is in the RIVERS file rather than the CATCHMENTS file
+        # (this is just how the MERIT-Basins authors did it)
+        if VERBOSE: print('Reading geodata for rivers in megabasin %s' % megabasin)
+        rivers_gdf = load_gdf("rivers", megabasin, True)
+        rivers_gdf.set_index('COMID', inplace=True)
+        # We wish to report the outlet point for each subbasin.
+        # We can get this information from end point of the river polylines.
+        rivers_gdf['end_point'] = rivers_gdf['geometry'].apply(lambda x: x.coords[0])
+        rivers_gdf['lng'] = rivers_gdf['end_point'].apply(lambda x: x[0])
+        rivers_gdf['lat'] = rivers_gdf['end_point'].apply(lambda x: x[1])
+
+        for outlet in outlets:
+            wshed_gages_gdf = get_wshed_rows(gages_gdf, outlet)
+            wshed_G, wshed_subbasins_gdf, wshed_rivers_gdf = get_watershed(wshed_gages_gdf, megabasin,
+                                                                           catchments_gdf, rivers_gdf)
+            # Merge the results with the master
+            if G is not None:
+                G = nx.compose(G, wshed_G)
+                subbasins_gdf = pd.concat([subbasins_gdf, wshed_subbasins_gdf])
+                myrivers_gdf = pd.concat([myrivers_gdf, wshed_rivers_gdf])
+            else:
+                G = wshed_G
+                subbasins_gdf = wshed_subbasins_gdf
+                myrivers_gdf = wshed_rivers_gdf
+
+    # Finally, write the results to disk
+    gages_list = gages_gdf['id'].tolist()
+    write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix)
+
+    if NETWORK_DIAGRAMS:
+        draw_graph(G, f'plots/{output_prefix}_network_final')
+
+    if VERBOSE:
+        print("Ran succesfully!")
+
+
+def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, rivers_gdf):
+    """
+    Finds the watershed and subbasins upstream of an outlet, including any intermediate locations
+    (such as gages) where the subbasins should be split.
+
+    Inputs:
+        gages_gdf: GeoDataFrame with the gages to delineate subbasins for
+
+
+    :return:
     """
 
     def addnode(B: list, node_id):
@@ -93,38 +198,16 @@ def delineate(input_csv: str, output_prefix: str):
         if up4 != 0:
             addnode(B, up4)
 
-    # Make sure the user folders from `config.py` exist (for output & plots). If not create them.
-    make_folders()
-
-    # Read the outlet points CSV file and put the data into a Pandas DataFrame
-    # (I call the outlet points gages, because I usually in delineated watersheds at streamflow gages)
-    gages_gdf = make_gages_gdf(input_csv)
-    num_gages = len(gages_gdf)
-
-    # Get the megabasin(s) in which the points are located (they need to all be in the same megabasin).
-    megabasin = get_megabasin(gages_gdf)
-
-    if VERBOSE:
-        print('Reading geodata for unit catchments in megabasin %s' % megabasin)
-    catchments_gdf = load_gdf("catchments", megabasin, True)
-
-    # The _network_ data is in the RIVERS file rather than the CATCHMENTS file
-    # (this is just how the MERIT-Basins authors did it)
-    if VERBOSE: print('Reading geodata for rivers in megabasin %s' % megabasin)
-    rivers_gdf = load_gdf("rivers", megabasin, True)
-    rivers_gdf.set_index('COMID', inplace=True)
-    # We wish to report the outlet point for each subbasin.
-    # We can get this information from end point of the river polylines.
-    rivers_gdf['end_point'] = rivers_gdf['geometry'].apply(lambda x: x.coords[0])
-    rivers_gdf['lng'] = rivers_gdf['end_point'].apply(lambda x: x[0])
-    rivers_gdf['lat'] = rivers_gdf['end_point'].apply(lambda x: x[1])
-
     # Perform an overlay analysis on gages (points) and the unit catchments (polygons)
     # to find the corresponding unit catchment in which each gages is located.
     # Adds the fields COMID and unitarea to `gages_gdf`
-    if VERBOSE: print(f"Performing overlay analysis on {num_gages} outlet points in basin #{megabasin}")
+
     gages_list = gages_gdf['id'].tolist()  # Get the list before doing the join.
-    gages_gdf = gpd.overlay(gages_gdf, catchments_gdf, how="intersection")
+    num_gages = len(gages_list)
+    if VERBOSE:
+        print(f"Performing overlay analysis on {num_gages} outlet points in basin #{megabasin}")
+    catchments_gdf.reset_index(inplace=True)
+    gages_gdf = gpd.overlay(gages_gdf, catchments_gdf, how="intersection", make_valid=True)
     gages_gdf.set_index('id', inplace=True)
     gages_gdf.set_crs(crs=PROJ_WGS84)
 
@@ -179,11 +262,12 @@ def delineate(input_csv: str, output_prefix: str):
     # visual representation of the river network.
     # `myrivers_gdf` will contain the topologically correct network where there is exactly
     # one polyline per unit catchment.
-    if OUTPUT_ALL_RIVERS:
-        allrivers_gdf = rivers_gdf.loc[upstream_comids]
-        fname = f"{OUTPUT_DIR}/{output_prefix}_allrivers.{OUTPUT_EXT}"
-        write_geodata(allrivers_gdf, fname)
-        del allrivers_gdf
+    # TODO: Will need to update this feature if we want to keep it
+    # if OUTPUT_ALL_RIVERS:
+    #    allrivers_gdf = rivers_gdf.loc[upstream_comids]
+    #    fname = f"{OUTPUT_DIR}/{output_prefix}_allrivers.{OUTPUT_EXT}"
+    #    write_geodata(allrivers_gdf, fname)
+    #    del allrivers_gdf
 
     # With this version, we will try to create a topologically correct visual representation
     # of the river network, where there is a 1:1 mapping of river reaches to subbasins.
@@ -309,7 +393,7 @@ def delineate(input_csv: str, output_prefix: str):
                 nextdown = 0
             subbasins_gdf.at[idx, 'nextdown'] = nextdown
 
-    # Round all the areas to one decimal (just for appearances)
+    # Round all the areas to four decimals (just for appearances)
     subbasins_gdf['unitarea'] = subbasins_gdf['unitarea'].round(1)
     subbasins_gdf['lat'] = subbasins_gdf['lat'].round(4)
     subbasins_gdf['lng'] = subbasins_gdf['lng'].round(4)
@@ -382,14 +466,7 @@ def delineate(input_csv: str, output_prefix: str):
     except Exception:
         pass
 
-    # Finally, write the results to disk
-    write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix)
-
-    if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{output_prefix}_network_final')
-
-    if VERBOSE: print("Ran succesfully!")
-
-    return G
+    return G, subbasins_gdf, myrivers_gdf
 
 
 def update_split_catchment_geo(gage_id, gages_gdf, myrivers_gdf, rivers_gdf, subbasins_gdf):
@@ -544,7 +621,7 @@ def make_gages_gdf(input_csv: str) -> gpd.GeoDataFrame:
     lat, lng (CRS 4326).
     """
     # Check that the CSV file is there
-    if not os.path.isfile(input_csv):
+    if not isfile(input_csv):
         raise Exception(f"Could not find your outlets file at: {input_csv}")
 
     if VERBOSE: print(f"Reading your outlets data in: {input_csv}")
@@ -638,8 +715,8 @@ def _run_from_terminal():
 
 def main():
     # Run directly, for convenience or during development and debugging
-    input_csv = 'outlets.csv'
-    out_prefix = 'iceland'
+    input_csv = 'test_inputs/susquehanna.csv'
+    out_prefix = 'susquehanna'
     delineate(input_csv, out_prefix)
 
 

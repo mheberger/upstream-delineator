@@ -15,18 +15,18 @@ VERBOSE = True
 # Directory (folder) containing the merged, basin-scale MERIT-Hydro flow direction rasters (.tif)
 # Download from https://mghydro.com/watersheds/rasters
 # For all paths, do not include a trailing slash.
-# MERIT_FDIR_DIR = r"C:\Data\GIS\MERITHydro\flow_dir_basins"
-MERIT_FDIR_DIR = "data/raster/flowdir_basins"
+MERIT_FDIR_DIR = r"C:\Data\GIS\MERITHydro\flow_dir_basins"
+#MERIT_FDIR_DIR = "data/raster/flowdir_basins"
 
 # Directory containing the merged, basin-scale MERIT-Hydro flow accumulation rasters (.tif)
 # Download from https://mghydro.com/watersheds/rasters
-# MERIT_ACCUM_DIR = r"C:\Data\GIS\MERITHydro\accum_basins"
-MERIT_ACCUM_DIR = "data/raster/accum_basins"
+MERIT_ACCUM_DIR = r"C:\Data\GIS\MERITHydro\accum_basins"
+#MERIT_ACCUM_DIR = "data/raster/accum_basins"
 
 # Folder where you have stored the Merit-BASINS unit catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins
-# CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
-CATCHMENTS_DIR = "data/shp/merit_catchments"
+CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
+#CATCHMENTS_DIR = "data/shp/merit_catchments"
 
 
 # Folder where you have stored the MERIT-Basins River flowline shapefiles
@@ -105,7 +105,7 @@ FILL_THRESHOLD = 100
 # extent possible while maintaining subbasins for your outlets and the necessary junctions.
 
 CONSOLIDATE = True
-MAX_AREA = 500  # in km²
+MAX_AREA = 1000  # in km²
 
 # Output a network diagram of the river network?
 # This is a simplified view of the flow pathways.

@@ -2,10 +2,10 @@
 import json
 import os
 from functools import partial
-from collections import Counter
 import networkx
 import pyproj
 import shapely
+from geopandas import GeoDataFrame
 from shapely.geometry import MultiPolygon, Polygon, LineString
 import geopandas as gpd
 import pandas as pd
@@ -259,13 +259,14 @@ def load_megabasins() -> gpd.GeoDataFrame:
     return megabasins_gdf
 
 
-def get_megabasin(points_gdf) -> int:
+def get_megabasins(points_gdf: GeoDataFrame) -> dict:
     """
-    Finds out what Pfafstetter Level 2 "megabasin" a point is in.
+    Finds out what Pfafstetter Level 2 "megabasins" the outlet points are in
     Arguments:
-        lat, lon of a point on the map
+        GeoDataFrame containing a set of points
     Returns:
-        the ID of the megabasin, an integer from 11 to 91
+        A dictionary, keys are the unique megabasins: integers from 11 to 91.
+        Values are lists of outlet points (type is variable, whatever the user entered in the input CSV file)
     """
 
     megabasins_gdf = load_megabasins()
@@ -280,23 +281,15 @@ def get_megabasin(points_gdf) -> int:
     pd.options.mode.chained_assignment = None
 
     # Get a list of the DISTINCT Level 2 basins, and a count of how many gages in each.
-    basins_df = gages_basins_join.groupby("BASIN").id.nunique()
-    basins = basins_df.index.tolist()
+    basins_dict = gages_basins_join.groupby('BASIN')['id'].apply(list).to_dict()
 
     # If the points are not in ANY megabasin
-    if len(basins) == 0:
+    if len(basins_dict) == 0:
         print("ERROR: Your watershed outlets do not fall inside any of the continental-scale megabasins. "
-          "Fix before continuing.")
+              "Fix before continuing.")
         raise Exception
 
-    # If the points fall in more than one megabasin, not possible to process: Raise Error
-    if len(basins) > 1:
-        print(f"ERROR: Your watershed outlets are in {len(basins)} continental-scale megabasin(s). "
-              f"Fix before continuing.")
-        raise Exception
-
-    # Function returns the megabasin of the first point (all are in the same megabasin)
-    return basins[0]
+    return basins_dict
 
 
 def make_folders():
@@ -406,7 +399,7 @@ def save_pickle(geotype: str, gdf: gpd.GeoDataFrame, basin: int, high_resolution
                 raise Warning("Could not save pickle file to: {pickle_fname}")
 
 
-def fix_polygon(poly: Polygon or MultiPolygon) :
+def fix_polygon(poly: Polygon or MultiPolygon):
     """
     When we use the difference() method in Shapely to subtract one polygon from another,
     it's common to end up with small slivers or unwanted geometries around the edges of
@@ -420,13 +413,13 @@ def fix_polygon(poly: Polygon or MultiPolygon) :
     simplified_poly = poly.simplify(tolerance=simplify_tolerance, preserve_topology=True)
 
     # Try buffering?
-    #buffered = simplified_poly.buffer(simplify_tolerance)
+    # buffered = simplified_poly.buffer(simplify_tolerance)
 
     # Merge the buffered polygons
-    #merged = shapely.ops.unary_union(buffered)
+    # merged = shapely.ops.unary_union(buffered)
 
     # Remove the buffer by shrinking back
-    #final_merged = merged.buffer(-simplify_tolerance)
+    # final_merged = merged.buffer(-simplify_tolerance)
 
     # Filter out small slivers by area
     min_area_threshold = 0.00001  # Define your own threshold

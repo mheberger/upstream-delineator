@@ -3,7 +3,7 @@
 import pickle
 import networkx as nx
 from py.plot_network import draw_graph
-from py.graph_tools import *
+from py.graph_tools import calculate_shreve_stream_order, calculate_strahler_stream_order, prune_node
 import numpy as np
 from config import VERBOSE
 from scipy.stats import skew
@@ -13,6 +13,7 @@ from typing import Tuple
 # Set to True to draw a bunch of network graphs. Mostly for debugging. Careful, they can get big for large networks
 DRAW_NET_DIAGRAM = False
 AREA_HISTOGRAMS = False
+
 
 def show_area_stats(G: nx.Graph) -> None:
     """
@@ -28,7 +29,7 @@ def show_area_stats(G: nx.Graph) -> None:
     median_area = np.median(areas)
     std_area = np.std(areas)
     cv = std_area / mean_area
-    skewness = skew(areas)
+    skewness = skew(areas)  # Gives a warning, but skew seems to work on a list just fine.
 
     # Print the results
     print("Summary statistics for subbasin areas:")
@@ -114,7 +115,7 @@ def trim_clusters(G: nx.DiGraph, threshold_area: int or float, mergest_dict: dic
     return G, mergest_dict, rivers2merge, rivers2delete
 
 
-def collapse_stems(G: nx.DiGraph, max_area: int or float, merges_dict: dict, rivers2merge: list
+def collapse_stems(G: nx.DiGraph, max_area: int or float, merges_dict: dict, rivers2merge: dict
                    ) -> Tuple[nx.DiGraph, dict, dict]:
     """
     Step #2, merge "stem" nodes with their downstream neighbor.
@@ -190,7 +191,7 @@ def prune_leaves(G: nx.DiGraph,
                  threshold_area: int or float,
                  merges_dict: dict,
                  rivers2merge: dict,
-                 rivers2delete: list) -> Tuple[nx.Graph, dict, dict, list]:
+                 rivers2delete: list) -> Tuple[nx.DiGraph, dict, dict, list]:
     """
     Step #3, merges small solo "leaves" with their neighbors.
     Candidates are unit catchments with Shreve order = 1 AND area < threshold
@@ -237,7 +238,8 @@ def prune_leaves(G: nx.DiGraph,
     return G, merges_dict, rivers2merge, rivers2delete
 
 
-def last_merge(G: nx.DiGraph, threshold_area: int or float, merges_dict: dict, rivers2merge) -> Tuple[nx.Graph, dict, dict]:
+def last_merge(G: nx.DiGraph, threshold_area: int or float, merges_dict: dict, rivers2merge) \
+        -> Tuple[nx.DiGraph, dict, dict]:
     """
     This final step in consolidating the river network graph,
     Merge stem nodes with their *upstream* neighbors where appropriate.

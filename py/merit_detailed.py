@@ -11,9 +11,10 @@ from numpy import floor, ceil
 from pysheds.grid import Grid
 from shapely.geometry import Polygon, MultiPolygon
 from shapely import wkb, ops
+import numpy as np
 
-from py.raster_plots import *
 from config import *
+from py.raster_plots import plot_mask, plot_accum, plot_flowdir, plot_streams, plot_clipped, plot_polys
 from py.util import get_largest
 
 
