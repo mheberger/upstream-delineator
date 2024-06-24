@@ -156,7 +156,7 @@ The script reads information about your desired watershed outlet points from a
 plain-text comma-delimited (CSV) file. Edit this file carefully, as the script will 
 not run if this file is not formatted correctly. 
 
-The CSV file **must** contain three required fields or columns.
+The CSV file **must** contain these 4 required fields or columns.
 
 - **id** - _required_: a unique identifier for your watershed or outlet point,
 an alphanumeric string. The id may be any length, but shorter is better. 
@@ -172,16 +172,28 @@ For example, use 23.0 instead of 23.
 
 - **lng** - _required_: longitude in decimal degrees
 
+- **is_outlet**: If the gage is a watershed outlet, enter `true` or `True` 
+(capitalization does not matter). For intermediate
+  upstream points that will be sub-basin outlets, enter `false` or `False`.
+
 All latitude and longitude coordinates should be in decimal degrees 
 (EPSG: 4326, [https://spatialreference.org/ref/epsg/4326//](https://spatialreference.org/ref/epsg/4326/)).
 
 - The order of the columns does not matter, but the names must be exactly as shown above.
 
-- The first row in the CSV file will be the main basin outlet.
+- If you are delineating more than one main watershed, put any subbasin 
+ outlets immediately after the main outlet, as in the following example:
 
-- All the following rows should contain points that are upstream of the first point, 
-or, in other words, which are contained in the first point's watershed.
+| id             | lat       | lng       | name                           | is_outlet |
+|----------------|-----------|-----------|--------------------------------|-----------|
+| foz-tua        | 41.217954 | -7.423504 | "Foz Tua, Portugal"            | true      |
+| barragem-torga | 41.720    | -7.113    | "Barragem de Torga"            | false     |
+| cm-1185        | 41.359    | -7.402    | "CM 1185 Crossing near Martim" | false     |
+| baixo-sabor    | 41.22864  | -7.0124   | "Baixo Sabor, Portugal"        | true      |
+| algoso         | 41.455    | -6.591    | "EN 219 Crossing near Algoso"  | false     |
 
+In this example, there are two *main* outlets. The first, "foz-tua," has two subbasin
+outlets. The second, "baixo-sabor," has one subbasin outlet. 
 
 ## <a name="step5">4. Update `config.py`</a>
 
