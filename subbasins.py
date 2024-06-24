@@ -638,7 +638,8 @@ def make_gages_gdf(input_csv: str) -> gpd.GeoDataFrame:
 def write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix):
 
     # (0) Save the river network GRAPH
-    save_network(G, output_prefix, 'pkl')
+    if SAVE_NETWORK:
+        save_network(G, output_prefix, NETWORK_FILE_EXT)
 
     # Save the GEODATA for (1) subbasins, (2) outlets, and (3) rivers
 
@@ -715,8 +716,8 @@ def _run_from_terminal():
 
 def main():
     # Run directly, for convenience or during development and debugging
-    input_csv = 'test_inputs/susquehanna.csv'
-    out_prefix = 'susquehanna'
+    input_csv = 'test_inputs/genesee.csv'
+    out_prefix = 'gen'
     delineate(input_csv, out_prefix)
 
 

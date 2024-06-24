@@ -120,7 +120,7 @@ def validate(gages_df: pd.DataFrame) -> bool:
 
     """
     cols = gages_df.columns
-    required_cols = ['id', 'lat', 'lng']
+    required_cols = ['id', 'lat', 'lng', 'is_outlet']
     for col in required_cols:
         if col not in cols:
             raise Exception(f"Missing column in CSV file: {col}")
@@ -160,6 +160,16 @@ def validate(gages_df: pd.DataFrame) -> bool:
     # Check that the ids are unique. We cannot have duplicate ids, because they are used as the index in DataFrames
     if not has_unique_elements(ids):
         raise Exception("Outlet ids must be unique. No duplicates are allowed!")
+
+    # Check that `is_outlet` is boolean
+    is_outlet_type = gages_df['is_outlet'][0]
+    if is_outlet_type != 'bool':
+        if is_outlet_type == 'O':
+            vals = gages_df['id'].unique()
+            if True not in vals:
+                raise Exception("The field `is_outlet` must be boolean (true/false)")
+    else:
+        raise Exception("The field `is_outlet` must be boolean (true/false)")
 
     return True
 

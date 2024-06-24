@@ -105,7 +105,7 @@ FILL_THRESHOLD = 100
 # extent possible while maintaining subbasins for your outlets and the necessary junctions.
 
 CONSOLIDATE = True
-MAX_AREA = 1000  # in km²
+MAX_AREA = 750  # in km²
 
 # Output a network diagram of the river network?
 # This is a simplified view of the flow pathways.
@@ -123,3 +123,13 @@ SHOW_AREA = False
 
 # Make the river network diagram vertical (top to bottom). If false, plot will be left to right.
 VERTICAL_PLOT = True
+
+# Do you want to export the river network graph?
+SAVE_NETWORK = True
+
+# What kind of file do you want for the network?
+# 'pkl':  Python pickle file
+# 'json': JSON file
+# 'gml':  GML (Graph Modeling Language), a common graph file format.
+# 'xml':  GraphML is an XML-based file format for graphs.
+NETWORK_FILE_EXT = 'xml'

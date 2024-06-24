@@ -215,7 +215,7 @@ def split_catchment(wid: str, basin: int, lat: float, lng: float, catchment_poly
         plot_streams(streams, catchment_poly, lat, lng, lat_snap, lng_snap, wid, numpixels)
 
     # Finally, here is the raster based watershed delineation with pysheds!
-    if VERBOSE: print("Delineating catchment")
+    if VERBOSE: print(f"Delineating catchment {wid}")
     try:
         catch = grid.catchment(fdir=fdir,
                                x=lng_snap,
