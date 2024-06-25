@@ -77,6 +77,9 @@ $ pip install -r requirements.txt
 ```
 This script uses the latest versions of Python packages circa April 2024.
 
+Make sure that you have the correct version of numpy. The `pysheds v0.4` library
+is *not* compatible with numpy v2.0. 
+
 ## Install GraphViz
 
 If you want the scripts to make diagrams of your river network, you will need
