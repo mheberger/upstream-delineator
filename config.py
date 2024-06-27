@@ -15,23 +15,24 @@ VERBOSE = True
 # Directory (folder) containing the merged, basin-scale MERIT-Hydro flow direction rasters (.tif)
 # Download from https://mghydro.com/watersheds/rasters
 # For all paths, do not include a trailing slash.
-MERIT_FDIR_DIR = r"C:\Data\GIS\MERITHydro\flow_dir_basins"
-#MERIT_FDIR_DIR = "data/raster/flowdir_basins"
+#MERIT_FDIR_DIR = r"C:\Data\GIS\MERITHydro\flow_dir_basins"
+MERIT_FDIR_DIR = "data/raster/flowdir_basins"
 
 # Directory containing the merged, basin-scale MERIT-Hydro flow accumulation rasters (.tif)
 # Download from https://mghydro.com/watersheds/rasters
-MERIT_ACCUM_DIR = r"C:\Data\GIS\MERITHydro\accum_basins"
-#MERIT_ACCUM_DIR = "data/raster/accum_basins"
+#MERIT_ACCUM_DIR = r"C:\Data\GIS\MERITHydro\accum_basins"
+MERIT_ACCUM_DIR = "data/raster/accum_basins"
 
 # Folder where you have stored the Merit-BASINS unit catchment shapefiles.
 # These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins
-CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
-#CATCHMENTS_DIR = "data/shp/merit_catchments"
+#CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
+CATCHMENTS_DIR = "data/shp/merit_catchments"
 
 
 # Folder where you have stored the MERIT-Basins River flowline shapefiles
 # Download from: https://www.reachhydro.org/home/params/merit-basins
-RIVERS_DIR = "C:/Data/GIS/MERITBasins/rivers"
+#RIVERS_DIR = "C:/Data/GIS/MERITBasins/rivers"
+RIVERS_DIR = "data/shp/merit_rivers"
 
 # Folder where the script will write the output geodata
 OUTPUT_DIR = "output"
@@ -68,7 +69,7 @@ THRESHOLD_MULTIPLE = 5000  # Where the outlet is in a unit catchment with upstre
 # from the watershed boundary polygons and river reach centerlines and produce smaller files  
 # However, it may also create topology problems -- misaligned edges, slivers, and dangles.
 # But the appearance may be jagged when zoomed in. Better results may be obtained with GIS or mapshaper.
-SIMPLIFY = True
+SIMPLIFY = False
 
 # If SIMPLIFY is True, set SIMPLIFY_TOLERANCE to a value in decimal degrees.
 # This is equivalent to the parameter epsilon in the Ramer–Douglas–Peucker algorithm
@@ -104,7 +105,7 @@ FILL_THRESHOLD = 100
 # If you set MAX_AREA to a very high number, the network will be collapsed to the maximum
 # extent possible while maintaining subbasins for your outlets and the necessary junctions.
 
-CONSOLIDATE = True
+CONSOLIDATE = False
 MAX_AREA = 750  # in km²
 
 # Output a network diagram of the river network?

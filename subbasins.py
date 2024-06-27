@@ -207,6 +207,10 @@ def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, r
     if VERBOSE:
         print(f"Performing overlay analysis on {num_gages} outlet points in basin #{megabasin}")
     catchments_gdf.reset_index(inplace=True)
+    try:
+        catchments_gdf.drop(columns=['index'], inplace=True)
+    except:
+        pass
     gages_gdf = gpd.overlay(gages_gdf, catchments_gdf, how="intersection", make_valid=True)
     gages_gdf.set_index('id', inplace=True)
     gages_gdf.set_crs(crs=PROJ_WGS84)
@@ -716,8 +720,8 @@ def _run_from_terminal():
 
 def main():
     # Run directly, for convenience or during development and debugging
-    input_csv = 'test_inputs/genesee.csv'
-    out_prefix = 'gen'
+    input_csv = 'outlets.csv'
+    out_prefix = 'iceland'
     delineate(input_csv, out_prefix)
 
 
