@@ -23,12 +23,6 @@ MERIT_FDIR_DIR = "data/raster/flowdir_basins"
 #CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
 CATCHMENTS_DIR = "data/shp/merit_catchments"
 
-
-# Folder where you have stored the MERIT-Basins River flowline shapefiles
-# Download from: https://www.reachhydro.org/home/params/merit-basins
-#RIVERS_DIR = "C:/Data/GIS/MERITBasins/rivers"
-RIVERS_DIR = "data/shp/merit_rivers"
-
 # Folder where the script will write the output geodata
 OUTPUT_DIR = "output"
 

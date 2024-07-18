@@ -343,7 +343,7 @@ def get_pickle_filename(geotype: str, basin: int, high_resolution: bool) -> str:
     return fname
 
 
-def load_gdf(geotype: str, basin: int, high_resolution: bool) -> gpd.GeoDataFrame:
+def load_gdf(geotype: str, basin: int, high_resolution: bool, bounds: tuple) -> gpd.GeoDataFrame:
     """
     Returns the unit catchments vector polygon dataset as a GeoDataFrame
     Gets the data from the MERIT-Basins shapefile the first time,
@@ -370,17 +370,14 @@ def load_gdf(geotype: str, basin: int, high_resolution: bool) -> gpd.GeoDataFram
     # Open the shapefile for the basin
     if geotype == "catchments":
         directory = CATCHMENTS_DIR
-        shapefile = f"{directory}/cat_pfaf_{basin}_MERIT_Hydro_v07_Basins_v01.shp"
+        gis_file = f"{directory}/cat_pfaf_{basin}_MERIT_Hydro_v07_Basins_v01.shp"
     elif geotype == "rivers":
-        shapefile = f"{RIVERS_DIR}/riv_pfaf_{basin}_MERIT_Hydro_v07_Basins_v01.shp"
+        gis_file = "https://pub-5f26e013d22e454ea079891d13f905f1.r2.dev/global_flowlines.fgb"
 
-    if not os.path.isfile(shapefile):
-        raise Exception(f"Could not find the file: {shapefile}")
+    if VERBOSE: print(f"Reading geodata in {gis_file}")
+    gdf = gpd.read_file(gis_file, bbox=bounds)
 
-    if VERBOSE: print(f"Reading geodata in {shapefile}")
-    gdf = gpd.read_file(shapefile)
-
-    # This line is necessary because some of the shapefiles provided by reachhydro.com do not include .prj files
+    # This line is necessary because some of the gis_files provided by reachhydro.com do not include .prj files
     gdf.set_crs(PROJ_WGS84, inplace=True, allow_override=True)
 
     # Before we exit, save the GeoDataFrame as a pickle file, for future speedups!
