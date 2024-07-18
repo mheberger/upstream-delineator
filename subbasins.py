@@ -103,7 +103,7 @@ def delineate(input_csv: str, output_prefix: str):
     # (I call the outlet points gages, because I usually in delineated watersheds at streamflow gages)
     gages_gdf = make_gages_gdf(input_csv)
     # TODO: add some amount of buffer?
-    all_points = unary_union(gages_gdf['geometry']).buffer(0)
+    all_points = unary_union(gages_gdf['geometry']).buffer(1)
     bounds = all_points.bounds
 
     # Create a filtered version with only the *outlets*
