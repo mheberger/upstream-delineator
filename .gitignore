@@ -1,0 +1,6 @@
+venv
+__pycache__
+py/__pycache__
+pkl
+output
+plots

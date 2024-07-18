@@ -55,7 +55,7 @@ to the directory containing `delineator.py` and related files, then enter these 
 
 To create the virtual environment:
 ```
-python -m venv venv
+python3 -m venv venv
 ```
 
 To activate the virtual environment (on Windows you may need to allow scripts using -- search for `Set-ExecutionPolicy`). 
