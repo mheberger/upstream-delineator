@@ -13,7 +13,7 @@ import re
 import pickle
 import warnings
 import matplotlib.pyplot as plt
-from config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, RIVERS_DIR, CATCHMENTS_DIR, PLOTS_DIR
+from config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, CATCHMENTS_DIR, PLOTS_DIR
 from numpy import random
 
 # The WGS84 projection string, used in a few places
