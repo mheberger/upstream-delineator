@@ -160,11 +160,7 @@ def split_catchment(wid: str, basin: int, lat: float, lng: float, catchment_poly
     # if VERBOSE: print("Snapping pour point")
 
     # Open the accumulation raster, again using windowed reading mode.
-    accum_fname = '{}/accum{}.tif'.format(MERIT_ACCUM_DIR, basin)
-    if not os.path.isfile(accum_fname):
-        raise Exception("Could not find accumulation raster: {}".format(accum_fname))
-
-    acc = grid.read_raster(accum_fname, data_name="acc", window=bounding_box, window_crs=grid.crs, nodata=0)
+    acc = grid.read_raster('https://pub-5f26e013d22e454ea079891d13f905f1.r2.dev/merit_accum.tif', data_name="acc", window=bounding_box, window_crs=grid.crs, nodata=0)
 
     # MASK the accumulation raster to the unit catchment POLYGON. Set any pixel that is not
     # in 'mymask' to zero. That way, the pour point will always snap to a grid cell that is
