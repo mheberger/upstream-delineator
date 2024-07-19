@@ -18,11 +18,6 @@ VERBOSE = True
 #MERIT_FDIR_DIR = r"C:\Data\GIS\MERITHydro\flow_dir_basins"
 MERIT_FDIR_DIR = "data/raster/flowdir_basins"
 
-# Folder where you have stored the Merit-BASINS unit catchment shapefiles.
-# These files need to be downloaded from: https://www.reachhydro.org/home/params/merit-basins
-#CATCHMENTS_DIR = r"C:\Data\GIS\MERITBasins\catchments\src"
-CATCHMENTS_DIR = "data/shp/merit_catchments"
-
 # Folder where the script will write the output geodata
 OUTPUT_DIR = "output"
 

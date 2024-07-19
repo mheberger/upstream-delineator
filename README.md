@@ -98,13 +98,12 @@ To simply try the program with the sample data provided, you can skip to step 5.
 When you are ready to try with your own locations, you will need to download additional 
 data as described in steps 1 and 2.
 
-1. [Download basin-scale MERIT-Hydro raster data (mghydro.com)](#step1)
-2. [Download MERIT-Basins vector data (reachhydro.com)](#step2)
-3. [Create a CSV file with your desired watershed outlet points](#step4)
-4. [Edit settings in `config.py`](#step5)
-5. [Run `subbasins.py` to delineate watersheds](#step6)
-6. [Review output](#step7)
-7. [Run again to fix mistakes (repeat steps 4 – 7)](#step8)
+1. [Download basin-scale MERIT-Hydro raster data (mghydro.com)](#step_download)
+1. [Create a CSV file with your desired watershed outlet points](#step_csv)
+1. [Edit settings in `config.py`](#step_config)
+1. [Run `subbasins.py` to delineate watersheds](#step_run)
+1. [Review output](#step_review)
+1. [Run again to fix mistakes](#step_repeat)
 
 Before you begin downloading the data in steps 1 and 2, determine which files you need based on your region of interest. 
 The data files are organized into continental-scale river basins, or Pfafstetter Level 2 basins. 
@@ -115,7 +114,7 @@ MERIT Level 2 megabasins
 
 # Detailed Instructions
 
-## <a name="step1">1. Download MERIT-Hydro raster data</a>
+## <a name="step_download">Download MERIT-Hydro raster data</a>
 
 You will need two sets of MERIT-Hydro gridded (or raster) data: **flow accumulation**
 and **flow direction**. 
@@ -131,29 +130,7 @@ Modify these variables:
 - `MERIT_ACCUM_DIR` (for flow accumulation)
 
 
-## 2. <a name="step2">Download MERIT-Basins vector data</a>
-
-Download the shapefiles for unit catchments and river reaches from the creators of MERIT-Basins. 
-Follow the instructions here:
-[https://www.reachhydro.org/home/params/merit-basins](https://www.reachhydro.org/home/params/merit-basins)
-
-In the folder `pfaf_level_02` , download two sets of files:
-
-1. unit catchment shapefiles: `cat_pfaf_##_MERIT_Hydro_v07_Basins_v01.shp`
-2. river reach shapefiles: `riv_pfaf_##_MERIT_Hydro_v07_Basins_v01.shp`
-
-In these files, `##` is the Pfafstetter Level 2 basin code. 
-See the figure above to determine which of the 61 level 2 basins you need, 
-depending on your region of interest. 
-
-(**Note**: Do NOT download the files marked 'bugfix' from MERIT-Basins. These files cause
-errors for some reason.)
-
-Unzip these files and save them to a folder on your hard drive. 
-Then, in `config.py`, update the variables 
-`CATCHMENTS_DIR` and `RIVERS_DIR` to tell the script where to find these data.
-
-## <a name="step4">3. Create a CSV file with your desired watershed outlet points</a>
+## <a name="step_csv">Create a CSV file with your desired watershed outlet points</a>
 
 The script reads information about your desired watershed outlet points from a 
 plain-text comma-delimited (CSV) file. Edit this file carefully, as the script will 
@@ -198,13 +175,13 @@ All latitude and longitude coordinates should be in decimal degrees
 In this example, there are two *main* outlets. The first, "foz-tua," has two subbasin
 outlets. The second, "baixo-sabor," has one subbasin outlet. 
 
-## <a name="step5">4. Update `config.py`</a>
+## <a name="step_config">Update `config.py`</a>
 
 Read through the options and set the variables as you wish. 
 Make sure to set the correct folder paths to where you are storing 
 the input data on your computer.
 
-## <a name="step6">5. Run `subbasins.py` to delineate watersheds</a>
+## <a name="step_run">Run `subbasins.py` to delineate watersheds</a>
 
 Once you have downloaded the datasets listed above, and updated `config.py`, 
 you are ready to delineate watersheds. The script takes exactly two arguments:
@@ -236,7 +213,7 @@ or via the console:
 >> delineate('outlets.csv', 'testrun')
 ```
 
-## <a name="step7">6. Review results</a>
+## <a name="step_review">Review results</a>
 
 The script can output several different geodata formats, 
 as long as the format is supported by `GeoPandas`. Shapefiles are popular, 
@@ -247,7 +224,7 @@ To get a full list of available formats, follow the directions
 (see Supported Drivers).
 
 
-## <a name="step8">7. Run again to fix any mistakes</a>
+## <a name="step_repeat">Run again to fix any mistakes</a>
 
 Automated watershed delineation is often incorrect. 
 The good news is that errors can often be fixed by slightly moving the 

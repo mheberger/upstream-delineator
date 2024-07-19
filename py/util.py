@@ -14,7 +14,7 @@ import re
 import pickle
 import warnings
 import matplotlib.pyplot as plt
-from config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, CATCHMENTS_DIR, PLOTS_DIR
+from config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, PLOTS_DIR
 from numpy import random
 
 # The WGS84 projection string, used in a few places
@@ -323,16 +323,16 @@ def make_folders():
             raise Exception(f"Could not create folder `{folder}`. Stopping")
 
 
-def get_pickle_filename(geotype: str, basin: int, high_resolution: bool) -> str:
+def get_pickle_filename(geotype: str, bounds: tuple, high_resolution: bool) -> str:
     """Simple function to get the standard filename for the pickle files used by this project.
     The filenames look like this:
-       PICKLE_DIR/catchments_##_hires.pkl
-       PICKLE_DIR/catchments_##_lores.pkl
+       PICKLE_DIR/catchments_##_##_##_##_hires.pkl
+       PICKLE_DIR/catchments_##_##_##_##_lores.pkl
 
-       PICKLE_DIR/rivers_##_hires.pkl
-       PICKLE_DIR/rivers_##_lores.pkl
+       PICKLE_DIR/rivers_##_##_##_##_hires.pkl
+       PICKLE_DIR/rivers_##_##_##_##_lores.pkl
 
-    where ## is the megabasin number (11-91)
+    where ## is a coord in bounds
 
     """
 
@@ -340,11 +340,12 @@ def get_pickle_filename(geotype: str, basin: int, high_resolution: bool) -> str:
         resolution_str = 'hires'
     else:
         resolution_str = 'lores'
-    fname = f'{PICKLE_DIR}/{geotype}_{basin}_{resolution_str}.pkl'
+    bounds_str = '_'.join(map(str, bounds))
+    fname = f'{PICKLE_DIR}/{geotype}_{bounds_str}_{resolution_str}.pkl'
     return fname
 
 
-def load_gdf(geotype: str, basin: int, high_resolution: bool, bounds: tuple) -> gpd.GeoDataFrame:
+def load_gdf(geotype: str, high_resolution: bool, bounds: tuple) -> gpd.GeoDataFrame:
     """
     Returns the unit catchments vector polygon dataset as a GeoDataFrame
     Gets the data from the MERIT-Basins shapefile the first time,
@@ -362,16 +363,16 @@ def load_gdf(geotype: str, basin: int, high_resolution: bool, bounds: tuple) -> 
 
     # First, check for the presence of a pickle file
     if PICKLE_DIR != '':
-        pickle_fname = get_pickle_filename(geotype, basin, high_resolution)
+        pickle_fname = get_pickle_filename(geotype, bounds, high_resolution)
         if os.path.isfile(pickle_fname):
-            if VERBOSE: print(f"Loading BASIN # {basin} catchment data from pickle file.")
+            if VERBOSE: print(f"Loading BASIN catchment data from pickle file.")
             gdf = pickle.load(open(pickle_fname, "rb"))
             return gdf
 
-    # Open the shapefile for the basin
+    # Open the shapefile for the bounds
     if geotype == "catchments":
         directory = CATCHMENTS_DIR
-        gis_file = f"{directory}/cat_pfaf_{basin}_MERIT_Hydro_v07_Basins_v01.shp"
+        gis_file = "https://pub-5f26e013d22e454ea079891d13f905f1.r2.dev/global_catchments.fgb"
     elif geotype == "rivers":
         gis_file = "https://pub-5f26e013d22e454ea079891d13f905f1.r2.dev/global_flowlines.fgb"
 
@@ -382,12 +383,12 @@ def load_gdf(geotype: str, basin: int, high_resolution: bool, bounds: tuple) -> 
     gdf.set_crs(PROJ_WGS84, inplace=True, allow_override=True)
 
     # Before we exit, save the GeoDataFrame as a pickle file, for future speedups!
-    save_pickle(geotype, gdf, basin, high_resolution)
+    save_pickle(geotype, gdf, high_resolution, bounds)
 
     return gdf
 
 
-def save_pickle(geotype: str, gdf: gpd.GeoDataFrame, basin: int, high_resolution: bool):
+def save_pickle(geotype: str, gdf: gpd.GeoDataFrame, high_resolution: bool, bounds: tuple):
     # If we loaded the catchments from a shapefile, save the gdf to a pickle file for future speedup
     if PICKLE_DIR != '':
 
@@ -399,7 +400,7 @@ def save_pickle(geotype: str, gdf: gpd.GeoDataFrame, basin: int, high_resolution
             gdf.sindex.create_index()
 
         # Get the standard project filename for the pickle files.
-        pickle_fname = get_pickle_filename(geotype, basin, high_resolution)
+        pickle_fname = get_pickle_filename(geotype, bounds, high_resolution)
         if not os.path.isfile(pickle_fname):
             if VERBOSE: print(f"Saving GeoDataFrame to pickle file: {pickle_fname}")
             try:

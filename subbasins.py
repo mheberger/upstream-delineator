@@ -123,13 +123,13 @@ def delineate(input_csv: str, output_prefix: str):
         # Iterate over the outlets:
         outlets = gage_basins_dict[megabasin]
 
-        if VERBOSE: print('Reading geodata for unit catchments in megabasin %s' % megabasin)
-        catchments_gdf = load_gdf("catchments", megabasin, True, bounds)
+        if VERBOSE: print(f'Reading geodata for unit catchments with bounds {bounds}')
+        catchments_gdf = load_gdf("catchments", True, bounds)
 
         # The _network_ data is in the RIVERS file rather than the CATCHMENTS file
         # (this is just how the MERIT-Basins authors did it)
-        if VERBOSE: print('Reading geodata for rivers in megabasin %s' % megabasin)
-        rivers_gdf = load_gdf("rivers", megabasin, True, bounds)
+        if VERBOSE: print(f'Reading geodata for rivers with bounds {bounds}')
+        rivers_gdf = load_gdf("rivers", True, bounds)
         rivers_gdf.set_index('COMID', inplace=True)
         # We wish to report the outlet point for each subbasin.
         # We can get this information from end point of the river polylines.
