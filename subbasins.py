@@ -40,6 +40,7 @@ from py.graph_tools import make_river_network, calculate_strahler_stream_order, 
 from py.merit_detailed import split_catchment
 from py.plot_network import draw_graph
 from py.fast_dissolve import dissolve_geopandas, buffer, close_holes
+from shapely.ops import unary_union
 
 from os.path import isfile
 import geopandas as gpd
@@ -101,6 +102,9 @@ def delineate(input_csv: str, output_prefix: str):
     # Read the outlet points CSV file and put the data into a Pandas DataFrame
     # (I call the outlet points gages, because I usually in delineated watersheds at streamflow gages)
     gages_gdf = make_gages_gdf(input_csv)
+    # TODO: add some amount of buffer?
+    all_points = unary_union(gages_gdf['geometry']).buffer(1)
+    bounds = all_points.bounds
 
     # Create a filtered version with only the *outlets*
     outlets_gdf = gages_gdf[gages_gdf['is_outlet'] == True]
@@ -120,12 +124,12 @@ def delineate(input_csv: str, output_prefix: str):
         outlets = gage_basins_dict[megabasin]
 
         if VERBOSE: print('Reading geodata for unit catchments in megabasin %s' % megabasin)
-        catchments_gdf = load_gdf("catchments", megabasin, True)
+        catchments_gdf = load_gdf("catchments", megabasin, True, bounds)
 
         # The _network_ data is in the RIVERS file rather than the CATCHMENTS file
         # (this is just how the MERIT-Basins authors did it)
         if VERBOSE: print('Reading geodata for rivers in megabasin %s' % megabasin)
-        rivers_gdf = load_gdf("rivers", megabasin, True)
+        rivers_gdf = load_gdf("rivers", megabasin, True, bounds)
         rivers_gdf.set_index('COMID', inplace=True)
         # We wish to report the outlet point for each subbasin.
         # We can get this information from end point of the river polylines.
