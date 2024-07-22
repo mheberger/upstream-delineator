@@ -12,12 +12,6 @@ outside of the sample data provided for Iceland.
 # Set to True if you want the script to write status messages to the console
 VERBOSE = True
 
-# Directory (folder) containing the merged, basin-scale MERIT-Hydro flow direction rasters (.tif)
-# Download from https://mghydro.com/watersheds/rasters
-# For all paths, do not include a trailing slash.
-#MERIT_FDIR_DIR = r"C:\Data\GIS\MERITHydro\flow_dir_basins"
-MERIT_FDIR_DIR = "data/raster/flowdir_basins"
-
 # Folder where the script will write the output geodata
 OUTPUT_DIR = "output"
 

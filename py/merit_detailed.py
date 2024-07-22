@@ -17,6 +17,8 @@ from config import *
 from py.raster_plots import plot_mask, plot_accum, plot_flowdir, plot_streams, plot_clipped, plot_polys
 from py.util import get_largest
 
+FLOW_DIR_PATH = 'https://public-hydrology-data.upstream.tech/merit_flowdir.tif'
+
 
 def split_catchment(wid: str, basin: int, lat: float, lng: float, catchment_poly: Polygon,
                     bSingleCatchment: bool) -> (object or None, float, float):
@@ -97,12 +99,7 @@ def split_catchment(wid: str, basin: int, lat: float, lng: float, catchment_poly
     bounding_box = tuple(bounds_list)
 
     # Open the flow direction raster *using windowed reading mode*
-    fdir_fname = "{}/flowdir{}.tif".format(MERIT_FDIR_DIR, basin)
-    # if VERBOSE: print("Loading flow direction raster from: {}".format(fdir_fname))
     # if VERBOSE: print(" using windowed reading mode with bounding_box = {}".format(repr(bounding_box)))
-
-    if not os.path.isfile(fdir_fname):
-        raise Exception("Could not find flow flow direction raster: {}".format(fdir_fname))
 
     # The pysheds documentation was not up-to-date. Seems there were some changes in the API
     # for the versions with and without the numba library (sgrid and pgrid)
@@ -111,7 +108,7 @@ def split_catchment(wid: str, basin: int, lat: float, lng: float, catchment_poly
     # You can still use it without numba, but the code is older and has not evolved with the new stuff (?)
     # Anyhow, the old version worked better for me in my testing.
     # grid = Grid.from_raster(path=fdir_fname, data=fdir_fname, data_name="myflowdir", window=bounding_box,nodata=0)
-    grid = Grid.from_raster(fdir_fname, window=bounding_box, nodata=0)
+    grid = Grid.from_raster(FLOW_DIR_PATH, window=bounding_box, nodata=0)
 
     # Now "clip" the rectangular flow direction grid even further so that it ONLY contains data
     # inside the bounaries of the terminal unit catchment.
@@ -137,7 +134,7 @@ def split_catchment(wid: str, basin: int, lat: float, lng: float, catchment_poly
     # grid.add_gridded_data(mymask, data_name="mymask", affine=grid.affine, crs=grid.crs, shape=grid.shape)
 
     # LOAD Flow Direction Grid
-    fdir = grid.read_raster(fdir_fname, window=bounding_box, nodata=0)
+    fdir = grid.read_raster(FLOW_DIR_PATH, window=bounding_box, nodata=0)
 
     # Not clear if this this step was unnecessary, but it makes the plots look nicer
     m, n = grid.shape
