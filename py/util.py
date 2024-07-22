@@ -19,6 +19,11 @@ from numpy import random
 
 # The WGS84 projection string, used in a few places
 PROJ_WGS84 = 'EPSG:4326'
+CATCHMENT_PATH = os.getenv("CATCHMENT_PATH")
+assert CATCHMENT_PATH
+RIVER_PATH = os.getenv("RIVER_PATH")
+assert RIVER_PATH
+
 
 # Regular expression used to find numbers so I can round lat, lng coordinates in GeoJSON files to make them smaller
 simpledec = re.compile(r"\d*\.\d+")
@@ -371,14 +376,14 @@ def load_gdf(geotype: str, high_resolution: bool, bounds: tuple) -> gpd.GeoDataF
 
     # Open the shapefile for the bounds
     if geotype == "catchments":
-        gis_file = "https://pub-5f26e013d22e454ea079891d13f905f1.r2.dev/global_catchments.fgb"
+        gis_path = CATCHMENT_PATH
     elif geotype == "rivers":
-        gis_file = "https://pub-5f26e013d22e454ea079891d13f905f1.r2.dev/global_flowlines.fgb"
+        gis_path = RIVER_PATH
 
-    if VERBOSE: print(f"Reading geodata in {gis_file}")
+    if VERBOSE: print(f"Reading geodata in {gis_path}")
     # use _read_file_pygrio instead of gpd.read_file b/c it's performing an unneeded check that causes a 403 error 
-    gdf = _read_file_pyogrio(gis_file, bbox=bounds)
-    # This line is necessary because some of the gis_files provided by reachhydro.com do not include .prj files
+    gdf = _read_file_pyogrio(gis_path, bbox=bounds)
+    # This line is necessary because some of the gis_paths provided by reachhydro.com do not include .prj files
     gdf.set_crs(PROJ_WGS84, inplace=True, allow_override=True)
 
     # Before we exit, save the GeoDataFrame as a pickle file, for future speedups!
