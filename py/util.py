@@ -371,7 +371,6 @@ def load_gdf(geotype: str, high_resolution: bool, bounds: tuple) -> gpd.GeoDataF
 
     # Open the shapefile for the bounds
     if geotype == "catchments":
-        directory = CATCHMENTS_DIR
         gis_file = "https://pub-5f26e013d22e454ea079891d13f905f1.r2.dev/global_catchments.fgb"
     elif geotype == "rivers":
         gis_file = "https://pub-5f26e013d22e454ea079891d13f905f1.r2.dev/global_flowlines.fgb"
