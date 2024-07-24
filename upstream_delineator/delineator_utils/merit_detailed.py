@@ -13,9 +13,9 @@ from shapely.geometry import Polygon, MultiPolygon
 from shapely import wkb, ops
 import numpy as np
 
-import config
-from delineator_utils.raster_plots import plot_mask, plot_accum, plot_flowdir, plot_streams, plot_clipped, plot_polys
-from delineator_utils.util import get_largest
+from upstream_delineator import config
+from upstream_delineator.delineator_utils.raster_plots import plot_mask, plot_accum, plot_flowdir, plot_streams, plot_clipped, plot_polys
+from upstream_delineator.delineator_utils.util import get_largest
 
 FLOW_DIR_PATH = os.getenv("FLOW_DIR_PATH")
 assert FLOW_DIR_PATH

@@ -1,7 +1,7 @@
 import networkx as nx
 import graphviz
 from PIL import Image
-from upstream_delineator.config import SHOW_AREA, VERTICAL_PLOT, DIAGRAM_FORMAT
+from upstream_delineator import config
 
 
 def area_to_size(area, max_area):
@@ -34,7 +34,7 @@ def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph"):
         max_area = None
 
     # Initialize a new directed graph in Graphviz
-    if VERTICAL_PLOT:
+    if config.get('VERTICAL_PLOT'):
         dot = graphviz.Digraph()
     else:
         dot = graphviz.Digraph(graph_attr={'rankdir': 'LR'})
@@ -47,7 +47,7 @@ def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph"):
     for node in G.nodes():
         label = f"{node}"
 
-        if SHOW_AREA:
+        if config.get("SHOW_AREA"):
             if 'area' in G.nodes[node]:
                 area = round(G.nodes[node]['area'])
                 label = f"{label}\n{area}"
@@ -65,10 +65,10 @@ def draw_graph(G: nx.DiGraph, filename: str, title="River Network Graph"):
         dot.edge(str(u), str(v))
 
     # Save the graph as a file and render it
-    dot.render(filename, format=DIAGRAM_FORMAT, cleanup=True)
+    dot.render(filename, format=config.get("DIAGRAM_FORMAT"), cleanup=True)
 
     # Display the graph using PIL
-    # image = Image.open(filename + "." + DIAGRAM_FORMAT)
+    # image = Image.open(filename + "." + config.get("DIAGRAM_FORMAT"))
     # image.show()
 
 

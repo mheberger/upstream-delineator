@@ -23,24 +23,22 @@ or in Python as follows:
 """
 
 # Standard Python libraries. See requirements.txt for recommended versions.
-import argparse
-import sys
 from shapely.geometry import Point
 import topojson
 import warnings
 
 # My stuff
-from upstream_delineator.config import *  # This file contains a bunch of variables to be set before running this script
-from upstream_delineator.py.consolidate import consolidate_network, show_area_stats
-from upstream_delineator.py.util import make_folders, get_megabasins, load_gdf, plot_basins, calc_area, \
+from upstream_delineator.delineator_utils.consolidate import consolidate_network, show_area_stats
+from upstream_delineator.delineator_utils.util import make_folders, get_megabasins, load_gdf, plot_basins, calc_area, \
     find_repeated_elements, fix_polygon, calc_length, validate, save_network, \
     write_geodata, PROJ_WGS84  # Contains a bunch of functions
-from upstream_delineator.py.graph_tools import make_river_network, calculate_strahler_stream_order, calculate_shreve_stream_order, \
+from upstream_delineator.delineator_utils.graph_tools import make_river_network, calculate_strahler_stream_order, calculate_shreve_stream_order, \
     prune_node, upstream_nodes  # Functions for working with river network information as a Python NetworkX graph
-from upstream_delineator.py.merit_detailed import split_catchment
-from upstream_delineator.py.plot_network import draw_graph
-from upstream_delineator.py.fast_dissolve import dissolve_geopandas, buffer, close_holes
+from upstream_delineator.delineator_utils.merit_detailed import split_catchment
+from upstream_delineator.delineator_utils.plot_network import draw_graph
+from upstream_delineator.delineator_utils.fast_dissolve import dissolve_geopandas, buffer, close_holes
 from shapely.ops import unary_union
+from upstream_delineator import config
 
 from os.path import isfile
 import geopandas as gpd
@@ -52,7 +50,7 @@ import networkx as nx
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 PIXEL_AREA = 0.000000695  # Constant for the area of a single pixel in MERIT-Hydro, in decimal degrees
-FILL_AREA_MAX = FILL_THRESHOLD * PIXEL_AREA
+FILL_AREA_MAX = config.get("FILL_THRESHOLD") * PIXEL_AREA
 
 
 def get_wshed_rows(df: gpd.GeoDataFrame, outlet):
@@ -77,8 +75,15 @@ def get_wshed_rows(df: gpd.GeoDataFrame, outlet):
 
     return result_df
 
+'''
+options:
+- just have a bunch of named args that are optional 
+- actually have a "config object" 
+    - this could be a dict
+    - this could be a pydantic class we define or a superclass that clients import and make instances of to enforce fields 
+'''
 
-def delineate(input_csv: str, output_prefix: str):
+def delineate(input_csv: str, output_prefix: str, config_vals: dict = None):
     """
     Finds the watershed for a set of outlets.
     Make sure to set the variables in `config.py` before running.
@@ -95,6 +100,8 @@ def delineate(input_csv: str, output_prefix: str):
     (including the watershed id, names, and areas).
 
     """
+    if config_vals:
+        config.set(config_vals)
 
     # Make sure the user folders from `config.py` exist (for output & plots). If not create them.
     make_folders()
@@ -123,12 +130,12 @@ def delineate(input_csv: str, output_prefix: str):
         # Iterate over the outlets:
         outlets = gage_basins_dict[megabasin]
 
-        if VERBOSE: print(f'Reading geodata for unit catchments with bounds {bounds}')
+        if config.get("VERBOSE"): print(f'Reading geodata for unit catchments with bounds {bounds}')
         catchments_gdf = load_gdf("catchments", True, bounds)
 
         # The _network_ data is in the RIVERS file rather than the CATCHMENTS file
         # (this is just how the MERIT-Basins authors did it)
-        if VERBOSE: print(f'Reading geodata for rivers with bounds {bounds}')
+        if config.get("VERBOSE"): print(f'Reading geodata for rivers with bounds {bounds}')
         rivers_gdf = load_gdf("rivers", True, bounds)
         rivers_gdf.set_index('COMID', inplace=True)
         # We wish to report the outlet point for each subbasin.
@@ -155,11 +162,10 @@ def delineate(input_csv: str, output_prefix: str):
     gages_list = gages_gdf['id'].tolist()
     write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix)
 
-    if NETWORK_DIAGRAMS:
+    if config.get("NETWORK_DIAGRAMS"):
         draw_graph(G, f'plots/{output_prefix}_network_final')
 
-    if VERBOSE:
-        print("Ran succesfully!")
+    print("Ran successfully!")
 
 
 def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, rivers_gdf):
@@ -208,7 +214,7 @@ def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, r
 
     gages_list = gages_gdf['id'].tolist()  # Get the list before doing the join.
     num_gages = len(gages_list)
-    if VERBOSE:
+    if config.get("VERBOSE"):
         print(f"Performing overlay analysis on {num_gages} outlet points in basin #{megabasin}")
     catchments_gdf.reset_index(inplace=True)
     try:
@@ -259,11 +265,11 @@ def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, r
     subbasins_gdf['nextdown'] = subbasins_gdf['nextdown'].astype(int)
     subbasins_gdf['custom'] = False  # Adds a column that shows whether a subbasin is connected to a custom pour point
 
-    if PLOTS: plot_basins(subbasins_gdf, gages_gdf, 'before')
+    if config.get("PLOTS"): plot_basins(subbasins_gdf, gages_gdf, 'before')
 
     # For debugging mostly
     # G = make_river_network(subbasins_gdf, terminal_comid)
-    # if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{OUTPUT_PREFIX}_network_before')
+    # if config.get("NETWORK_DIAGRAMS"): draw_graph(G, f'plots/{OUTPUT_PREFIX}_network_before')
 
     # Create two copies of river network data!
     # `allrivers_gdf` will contain all the available polylines in the watershed, a nice
@@ -311,9 +317,9 @@ def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, r
     subbasins_gdf.at[terminal_node_id, 'nextdown'] = 0
 
     # Create a NETWORK GRAPH of the river basin.
-    if VERBOSE: print("Creating Network GRAPH")
+    if config.get("VERBOSE"): print("Creating Network GRAPH")
     G = make_river_network(subbasins_gdf, terminal_comid)
-    if VERBOSE: show_area_stats(G)
+    if config.get("VERBOSE"): show_area_stats(G)
     G = calculate_shreve_stream_order(G)
     G = calculate_strahler_stream_order(G)
 
@@ -322,7 +328,7 @@ def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, r
         G.nodes[gage]['custom'] = True
 
     # Draw the network before consolidating? Mostly useful for debugging.
-    # if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{OUTPUT_PREFIX}_premerge')
+    # if config.get("NETWORK_DIAGRAMS"): draw_graph(G, f'plots/{OUTPUT_PREFIX}_premerge')
 
     # CHECK FOR Null Geometries.
     # If the user has placed one of their points very close to an existing basin outlet,
@@ -336,22 +342,22 @@ def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, r
         prune_node(G, node)
 
     if len(null_nodes) > 0:
-        if VERBOSE: print(f"Pruned {len(null_nodes)} empty unit catchments from the river network.")
+        if config.get("VERBOSE"): print(f"Pruned {len(null_nodes)} empty unit catchments from the river network.")
         print(null_nodes)
-        # if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{OUTPUT_PREFIX}_network_pruned')
+        # if config.get("NETWORK_DIAGRAMS"): draw_graph(G, f'plots/{OUTPUT_PREFIX}_network_pruned')
 
     null_rivers = myrivers_gdf.index[myrivers_gdf['geometry'].is_empty].tolist()
     myrivers_gdf.drop(null_rivers, inplace=True)
 
     # SIMPLIFY the geodata?
     # Can speed up subsequent geo operations, but sometimes also causes problems!
-    if SIMPLIFY:
+    if config.get("SIMPLIFY"):
         topo = topojson.Topology(subbasins_gdf, prequantize=False)
-        subbasins_gdf = topo.toposimplify(SIMPLIFY_TOLERANCE).to_gdf()
+        subbasins_gdf = topo.toposimplify(config.get("SIMPLIFY_TOLERANCE")).to_gdf()
         # The simplification often creates topology errors (ironic!), so try my trick to fix.
         subbasins_gdf.geometry = subbasins_gdf.geometry.apply(lambda p: buffer(p))
         topo = topojson.Topology(myrivers_gdf, prequantize=False)
-        myrivers_gdf = topo.toposimplify(SIMPLIFY_TOLERANCE).to_gdf()
+        myrivers_gdf = topo.toposimplify(config.get("SIMPLIFY_TOLERANCE")).to_gdf()
 
     # Add attributes for subbasin area and river reach length to the Graph
     # We will keep track of these quantities as we delete and merge nodes
@@ -366,9 +372,9 @@ def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, r
 
     # If the user wants larger subbasins, we can merge adjacent unit catchments.
     # I call this "consolidating the river network."
-    if CONSOLIDATE:
-        G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=MAX_AREA)
-        # if NETWORK_DIAGRAMS: draw_graph(G, f'plots/{OUTPUT_PREFIX}_network_final')
+    if config.get("CONSOLIDATE"):
+        G, MERGES, rivers2merge, rivers2delete = consolidate_network(G, threshold_area=config.get("MAX_AREA"))
+        # if config.get("NETWORK_DIAGRAMS"): draw_graph(G, f'plots/{OUTPUT_PREFIX}_network_final')
         subbasins_gdf['target'] = subbasins_gdf.index
 
         # Dissolve unit catchments based on information in MERGES.
@@ -381,7 +387,7 @@ def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, r
             'lng': 'last',
         }
 
-        if VERBOSE: print("Dissolving geometries. Can be slow. Please wait...")
+        if config.get("VERBOSE"): print("Dissolving geometries. Can be slow. Please wait...")
         subbasins_gdf = subbasins_gdf.dissolve(by="target", aggfunc=agg)
         subbasins_gdf.geometry = subbasins_gdf.geometry.apply(lambda p: buffer(p))
         subbasins_gdf.geometry = subbasins_gdf.geometry.apply(lambda p: close_holes(p, 0))
@@ -406,7 +412,7 @@ def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, r
     subbasins_gdf['lat'] = subbasins_gdf['lat'].round(4)
     subbasins_gdf['lng'] = subbasins_gdf['lng'].round(4)
 
-    if CONSOLIDATE:
+    if config.get("CONSOLIDATE"):
         # Now handle the river reaches, deleting some rows, dissolving others.
         myrivers_gdf.drop(rivers2delete, inplace=True)
 
@@ -632,7 +638,7 @@ def make_gages_gdf(input_csv: str) -> gpd.GeoDataFrame:
     if not isfile(input_csv):
         raise Exception(f"Could not find your outlets file at: {input_csv}")
 
-    if VERBOSE: print(f"Reading your outlets data in: {input_csv}")
+    if config.get("VERBOSE"): print(f"Reading your outlets data in: {input_csv}")
     gages_df = pd.read_csv(input_csv, header=0, skipinitialspace=True,
                            dtype={'id': 'str', 'lat': 'float', 'lng': 'float'})
     # Check that the CSV file includes at a minimum: id, lat, lng and that all values are appropriate
@@ -646,27 +652,27 @@ def make_gages_gdf(input_csv: str) -> gpd.GeoDataFrame:
 def write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix):
 
     # (0) Save the river network GRAPH
-    if SAVE_NETWORK:
-        save_network(G, output_prefix, NETWORK_FILE_EXT)
+    if config.get("SAVE_NETWORK"):
+        save_network(G, output_prefix, config.get("NETWORK_FILE_EXT"))
 
     # Save the GEODATA for (1) subbasins, (2) outlets, and (3) rivers
 
     # (1) SUBBASINS
-    fname = f"{OUTPUT_DIR}/{output_prefix}_subbasins.{OUTPUT_EXT}"
+    fname = f'{config.get("OUTPUT_DIR")}/{output_prefix}_subbasins.{config.get("OUTPUT_EXT")}'
     write_geodata(subbasins_gdf, fname)
 
     # (2) Get the OUTLETS data and write it to disk
     outlets_gdf = subbasins_gdf.copy()
     outlets_gdf['geometry'] = outlets_gdf.apply(lambda row: Point(row['lng'], row['lat']), axis=1)
-    fname = f"{OUTPUT_DIR}/{output_prefix}_outlets.{OUTPUT_EXT}"
+    fname = f'{config.get("OUTPUT_DIR")}/{output_prefix}_outlets.{config.get("OUTPUT_EXT")}'
     write_geodata(outlets_gdf, fname)
 
     # (3) Write the RIVERS data to disk.
-    fname = f"{OUTPUT_DIR}/{output_prefix}_rivers.{OUTPUT_EXT}"
+    fname = f'{config.get("OUTPUT_DIR")}/{output_prefix}_rivers.{config.get("OUTPUT_EXT")}'
     write_geodata(myrivers_gdf, fname)
 
     # Finally, return the larger watersheds for each outlet point, if desired
-    if WATERSHEDS:
+    if config.get("WATERSHEDS"):
         create_watersheds(G, gages_list, subbasins_gdf)
 
 
@@ -677,10 +683,10 @@ def create_watersheds(G, gages_list, subbasins_gdf):
 
     """
     subbasins_gdf.set_index('comid', inplace=True)
-    if VERBOSE: print(f"Creating MERGED watersheds geodata for {len(gages_list)} outlets.")
+    if config.get("VERBOSE"): print(f"Creating MERGED watersheds geodata for {len(gages_list)} outlets.")
     # Iterate over each of the user's nodes
     for node in gages_list:
-        if VERBOSE: print(f"Creating watershed for outlet: {node}")
+        if config.get("VERBOSE"): print(f"Creating watershed for outlet: {node}")
         upnodes = upstream_nodes(G, node)
         upnodes.append(node)
         mysubs_gdf = subbasins_gdf.loc[upnodes]
@@ -692,46 +698,10 @@ def create_watersheds(G, gages_list, subbasins_gdf):
             watershed_gdf = gpd.GeoDataFrame(watershed_gs, columns=['geometry'])
             watershed_gdf['id'] = node
 
-        if FILL:
+        if config.get("FILL"):
             watershed_gdf.geometry = watershed_gdf.geometry.apply(lambda p: close_holes(p, FILL_AREA_MAX))
 
-        fname = f"{OUTPUT_DIR}/wshed_{node}.{OUTPUT_EXT}"
+        fname = f'{config.get("OUTPUT_DIR")}/wshed_{node}.{config.get("OUTPUT_EXT")}'
         write_geodata(watershed_gdf, fname)
 
 
-def _run_from_terminal():
-    """
-    Routine which is run when you call subbasins.py from the command line.
-    should be run like:
-    python subbasins.py outlets.csv run_name
-    """
-    # Create the parser for command line inputs.
-    description = "Delineate subbasins using data in and input CSV file. Writes " \
-        "a set of output files beginning with the output prefix string."
-
-    parser = argparse.ArgumentParser(description=description)
-
-    # Add the arguments
-    parser.add_argument('input_csv', help="Input CSV filename, for example 'gages.csv'")
-    parser.add_argument('output_prefix', help="Output prefix, a string. The output files will start with this string")
-
-    # Parse the arguments
-    args = parser.parse_args()
-
-    # Call the main function, passing the command line arguments
-    delineate(args.input_csv, args.output_prefix)
-
-
-def main():
-    # Run directly, for convenience or during development and debugging
-    input_csv = 'outlets.csv'
-    out_prefix = 'iceland'
-    delineate(input_csv, out_prefix)
-
-
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        # Run with command-line arguments
-        _run_from_terminal()
-    else:
-        main()

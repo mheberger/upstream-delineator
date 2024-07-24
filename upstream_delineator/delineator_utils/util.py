@@ -1,4 +1,5 @@
 # Functions used by the watershed subbasins delineator script. Matt Heberger, May 2022
+from typing import Union
 import json
 import os
 from functools import partial
@@ -14,8 +15,9 @@ import re
 import pickle
 import warnings
 import matplotlib.pyplot as plt
-from upstream_delineator.config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, PLOTS_DIR
 from numpy import random
+
+from upstream_delineator import config
 
 # The WGS84 projection string, used in a few places
 PROJ_WGS84 = 'EPSG:4326'
@@ -31,7 +33,7 @@ assert MEGABASINS_PATH
 simpledec = re.compile(r"\d*\.\d+")
 
 
-def get_largest(input_poly: MultiPolygon or Polygon) -> Polygon:
+def get_largest(input_poly: Union[MultiPolygon, Polygon]) -> Polygon:
     """
     Converts a Shapely MultiPolygon to a Shapely Polygon
     For multipart polygons, will only keep the largest polygon
@@ -252,16 +254,16 @@ def load_megabasins() -> gpd.GeoDataFrame:
     """
 
     # Check whether the pickle file exists
-    pickle_fname = f"{PICKLE_DIR}/megabasins.pkl"
+    pickle_fname = f'{config.get("PICKLE_DIR")}/megabasins.pkl'
     if os.path.isfile(pickle_fname):
-        if VERBOSE: print("Loading Megabasins from Pickle File")
+        if config.get("VERBOSE"): print("Loading Megabasins from Pickle File")
         gdf = pickle.load(open(pickle_fname, "rb"))
         return gdf
     else:
         # This file has the merged "megabasins_gdf" in it
-        if VERBOSE: print("Reading Megabasins shapefile")
+        if config.get("VERBOSE"): print("Reading Megabasins shapefile")
         merit_basins_shp = MEGABASINS_PATH
-        megabasins_gdf = gpd.read_file(merit_basins_shp)
+        megabasins_gdf =_read_file_pyogrio(merit_basins_shp)
 
         # The CRS string in the shapefile is EPSG 4326 but does not match verbatim, so set it here
         megabasins_gdf.to_crs(PROJ_WGS84, inplace=True)
@@ -269,9 +271,9 @@ def load_megabasins() -> gpd.GeoDataFrame:
             raise Exception("An error occurred loading the Level 2 basins shapefile")
 
         # Try saving to a pickle file for future speedups
-        if len(PICKLE_DIR) > 0:
+        if len(config.get("PICKLE_DIR")) > 0:
             # Recall that the latest versions of GeoPandas create spatial indices automatically
-            if VERBOSE: print("Saving megabasins GeoDataFrame to pickle file.")
+            if config.get("VERBOSE"): print("Saving megabasins GeoDataFrame to pickle file.")
             pickle.dump(megabasins_gdf, open(pickle_fname, "wb"))
 
     return megabasins_gdf
@@ -288,7 +290,7 @@ def get_megabasins(points_gdf: GeoDataFrame) -> dict:
     """
 
     megabasins_gdf = load_megabasins()
-    if VERBOSE: print("Finding out which Pfafstetter Level 2 'megabasin' your outlets are in")
+    if config.get("VERBOSE"): print("Finding out which Pfafstetter Level 2 'megabasin' your outlets are in")
 
     # Overlay the gage points on the Level 2 Basins polygons to find out which
     # PFAF_2 basin each point falls inside of, using a spatial join
@@ -320,7 +322,7 @@ def make_folders():
     :return: Nothing, but throws an error if it fails.
     """
     # Check that the OUTPUT directories are there. If not, try to create them.
-    folders = [OUTPUT_DIR, PLOTS_DIR, PICKLE_DIR]
+    folders = [config.get("OUTPUT_DIR"), config.get("PLOTS_DIR"), config.get("PICKLE_DIR")]
     for folder in folders:
         if folder == '':
             continue
@@ -333,11 +335,11 @@ def make_folders():
 def get_pickle_filename(geotype: str, bounds: tuple, high_resolution: bool) -> str:
     """Simple function to get the standard filename for the pickle files used by this project.
     The filenames look like this:
-       PICKLE_DIR/catchments_##_##_##_##_hires.pkl
-       PICKLE_DIR/catchments_##_##_##_##_lores.pkl
+       config.get("PICKLE_DIR")/catchments_##_##_##_##_hires.pkl
+       config.get("PICKLE_DIR")/catchments_##_##_##_##_lores.pkl
 
-       PICKLE_DIR/rivers_##_##_##_##_hires.pkl
-       PICKLE_DIR/rivers_##_##_##_##_lores.pkl
+       config.get("PICKLE_DIR")/rivers_##_##_##_##_hires.pkl
+       config.get("PICKLE_DIR")/rivers_##_##_##_##_lores.pkl
 
     where ## is a coord in bounds
 
@@ -348,7 +350,7 @@ def get_pickle_filename(geotype: str, bounds: tuple, high_resolution: bool) -> s
     else:
         resolution_str = 'lores'
     bounds_str = '_'.join(map(str, bounds))
-    fname = f'{PICKLE_DIR}/{geotype}_{bounds_str}_{resolution_str}.pkl'
+    fname = f'{config.get("PICKLE_DIR")}/{geotype}_{bounds_str}_{resolution_str}.pkl'
     return fname
 
 
@@ -369,10 +371,10 @@ def load_gdf(geotype: str, high_resolution: bool, bounds: tuple) -> gpd.GeoDataF
     """
 
     # First, check for the presence of a pickle file
-    if PICKLE_DIR != '':
+    if config.get("PICKLE_DIR") != '':
         pickle_fname = get_pickle_filename(geotype, bounds, high_resolution)
         if os.path.isfile(pickle_fname):
-            if VERBOSE: print(f"Loading BASIN catchment data from pickle file.")
+            if config.get("VERBOSE"): print(f"Loading BASIN catchment data from pickle file.")
             gdf = pickle.load(open(pickle_fname, "rb"))
             return gdf
 
@@ -382,7 +384,7 @@ def load_gdf(geotype: str, high_resolution: bool, bounds: tuple) -> gpd.GeoDataF
     elif geotype == "rivers":
         gis_path = RIVER_PATH
 
-    if VERBOSE: print(f"Reading geodata in {gis_path}")
+    if config.get("VERBOSE"): print(f"Reading geodata in {gis_path}")
     # use _read_file_pygrio instead of gpd.read_file b/c it's performing an unneeded check that causes a 403 error 
     gdf = _read_file_pyogrio(gis_path, bbox=bounds)
     # This line is necessary because some of the gis_paths provided by reachhydro.com do not include .prj files
@@ -396,7 +398,7 @@ def load_gdf(geotype: str, high_resolution: bool, bounds: tuple) -> gpd.GeoDataF
 
 def save_pickle(geotype: str, gdf: gpd.GeoDataFrame, high_resolution: bool, bounds: tuple):
     # If we loaded the catchments from a shapefile, save the gdf to a pickle file for future speedup
-    if PICKLE_DIR != '':
+    if config.get("PICKLE_DIR") != '':
 
         # Check whether the GDF has a spatial index.
         # Note: I don't think this is ever necessary. Since version 0.7.0 (March 2020), GeoPandas
@@ -408,14 +410,14 @@ def save_pickle(geotype: str, gdf: gpd.GeoDataFrame, high_resolution: bool, boun
         # Get the standard project filename for the pickle files.
         pickle_fname = get_pickle_filename(geotype, bounds, high_resolution)
         if not os.path.isfile(pickle_fname):
-            if VERBOSE: print(f"Saving GeoDataFrame to pickle file: {pickle_fname}")
+            if config.get("VERBOSE"): print(f"Saving GeoDataFrame to pickle file: {pickle_fname}")
             try:
                 pickle.dump(gdf, open(pickle_fname, "wb"))
             except Exception:
                 raise Warning("Could not save pickle file to: {pickle_fname}")
 
 
-def fix_polygon(poly: Polygon or MultiPolygon):
+def fix_polygon(poly: Union[Polygon, MultiPolygon]):
     """
     When we use the difference() method in Shapely to subtract one polygon from another,
     it's common to end up with small slivers or unwanted geometries around the edges of
@@ -459,11 +461,11 @@ def write_geodata(gdf: gpd.GeoDataFrame, fname: str):
     """
     Write a GeoDataFrame to disk in the user's pre
     """
-    if VERBOSE: print('Writing geodata to disk')
+    if config.get("VERBOSE"): print('Writing geodata to disk')
 
     # This line rounds all the vertices to fewer digits. For text-like formats GeoJSON or KML, makes smaller
     # files with minimal loss of precision. For other formats (shp, gpkg), it doesn't change file size, so don't bother.
-    if OUTPUT_EXT.lower() in ['geojson', 'kml']:
+    if config.get("OUTPUT_EXT").lower() in ['geojson', 'kml']:
         gdf.geometry = gdf.geometry.apply(lambda x: shapely.wkt.loads(re.sub(simpledec, mround, x.wkt)))
 
     with warnings.catch_warnings():
@@ -487,7 +489,7 @@ def plot_basins(basins_gdf: gpd.GeoDataFrame, outlets_gdf: gpd.GeoDataFrame, fna
     # Plot the gage points
     outlets_gdf.plot(ax=ax, c='red', edgecolors='black')
 
-    plt.savefig(f"{PLOTS_DIR}/{fname}.png")
+    plt.savefig(f'{config.get("PLOTS_DIR")}/{fname}.png')
     plt.close(fig)
 
 
@@ -510,7 +512,7 @@ def save_network(G: networkx.Graph, prefix: str, file_ext: str):
               f"{', '.join(allowed_formats)}")
         raise Warning("Did not save graph data.")
 
-    filename = f"{OUTPUT_DIR}/{prefix}_graph.{file_ext}"
+    filename = f'{config.get("OUTPUT_DIR")}/{prefix}_graph.{file_ext}'
 
     if file_ext == 'pkl':
         # (1) Python pickle file
