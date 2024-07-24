@@ -2,10 +2,10 @@
 
 import pickle
 import networkx as nx
-from py.plot_network import draw_graph
-from py.graph_tools import calculate_shreve_stream_order, calculate_strahler_stream_order, prune_node
+from upstream_delineator.py.plot_network import draw_graph
+from upstream_delineator.py.graph_tools import calculate_shreve_stream_order, calculate_strahler_stream_order, prune_node
 import numpy as np
-from config import VERBOSE
+from upstream_delineator.config import VERBOSE
 from scipy.stats import skew
 import matplotlib.pyplot as plt
 from typing import Tuple

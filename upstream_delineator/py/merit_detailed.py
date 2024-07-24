@@ -8,14 +8,13 @@ and use vector data for the rest of the upstream watershed.
 """
 import os
 from numpy import floor, ceil
-from pysheds.grid import Grid
 from shapely.geometry import Polygon, MultiPolygon
 from shapely import wkb, ops
 import numpy as np
 
-from config import *
-from py.raster_plots import plot_mask, plot_accum, plot_flowdir, plot_streams, plot_clipped, plot_polys
-from py.util import get_largest
+from upstream_delineator.config import *
+from upstream_delineator.py.raster_plots import plot_mask, plot_accum, plot_flowdir, plot_streams, plot_clipped, plot_polys
+from upstream_delineator.py.util import get_largest
 
 FLOW_DIR_PATH = os.getenv("FLOW_DIR_PATH")
 assert FLOW_DIR_PATH
@@ -110,6 +109,7 @@ def split_catchment(wid: str, basin: int, lat: float, lng: float, catchment_poly
     # You can still use it without numba, but the code is older and has not evolved with the new stuff (?)
     # Anyhow, the old version worked better for me in my testing.
     # grid = Grid.from_raster(path=fdir_fname, data=fdir_fname, data_name="myflowdir", window=bounding_box,nodata=0)
+    from pysheds.grid import Grid
     grid = Grid.from_raster(FLOW_DIR_PATH, window=bounding_box, nodata=0)
 
     # Now "clip" the rectangular flow direction grid even further so that it ONLY contains data

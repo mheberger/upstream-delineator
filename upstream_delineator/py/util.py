@@ -14,7 +14,7 @@ import re
 import pickle
 import warnings
 import matplotlib.pyplot as plt
-from config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, PLOTS_DIR
+from upstream_delineator.config import PICKLE_DIR, OUTPUT_DIR, VERBOSE, OUTPUT_EXT, PLOTS_DIR
 from numpy import random
 
 # The WGS84 projection string, used in a few places
@@ -23,6 +23,8 @@ CATCHMENT_PATH = os.getenv("CATCHMENT_PATH")
 assert CATCHMENT_PATH
 RIVER_PATH = os.getenv("RIVER_PATH")
 assert RIVER_PATH
+MEGABASINS_PATH = os.getenv("MEGABASINS_PATH")
+assert MEGABASINS_PATH
 
 
 # Regular expression used to find numbers so I can round lat, lng coordinates in GeoJSON files to make them smaller
@@ -258,7 +260,7 @@ def load_megabasins() -> gpd.GeoDataFrame:
     else:
         # This file has the merged "megabasins_gdf" in it
         if VERBOSE: print("Reading Megabasins shapefile")
-        merit_basins_shp = 'data/shp/basins_level2/merit_hydro_vect_level2.shp'
+        merit_basins_shp = MEGABASINS_PATH
         megabasins_gdf = gpd.read_file(merit_basins_shp)
 
         # The CRS string in the shapefile is EPSG 4326 but does not match verbatim, so set it here
@@ -510,18 +512,19 @@ def save_network(G: networkx.Graph, prefix: str, file_ext: str):
 
     filename = f"{OUTPUT_DIR}/{prefix}_graph.{file_ext}"
 
-    match file_ext:
-        case 'pkl':
-            # (1) Python pickle file
-            pickle.dump(G, open(filename, "wb"))
-        case 'json':
-            # (2) JSON file
-            data = networkx.node_link_data(G)
-            with open(filename, "w") as f:
-                json.dump(data, f)
-        case 'gml':
-            # (3) GML (Graph Modeling Language), a common graph file format.
-            networkx.write_gml(G, filename)
-        case 'xml':
-            # (4) GraphML is an XML-based file format for graphs.
-            networkx.write_graphml(G, filename)
+    if file_ext == 'pkl':
+        # (1) Python pickle file
+        pickle.dump(G, open(filename, "wb"))
+    elif file_ext == 'json':
+        # (2) JSON file
+        data = networkx.node_link_data(G)
+        with open(filename, "w") as f:
+            json.dump(data, f)
+    elif file_ext == 'gml':
+        # (3) GML (Graph Modeling Language), a common graph file format.
+        networkx.write_gml(G, filename)
+    elif file_ext == 'xml':
+        # (4) GraphML is an XML-based file format for graphs.
+        networkx.write_graphml(G, filename)
+    else:
+        raise ValueError(f'Unhandled file extension {file_ext}')

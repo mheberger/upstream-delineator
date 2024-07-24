@@ -1,7 +1,7 @@
 import networkx as nx
 import graphviz
 from PIL import Image
-from config import SHOW_AREA, VERTICAL_PLOT, DIAGRAM_FORMAT
+from upstream_delineator.config import SHOW_AREA, VERTICAL_PLOT, DIAGRAM_FORMAT
 
 
 def area_to_size(area, max_area):
