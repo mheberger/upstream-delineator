@@ -51,7 +51,7 @@ def _run_from_terminal():
     args = parser.parse_args()
 
     # Call the main function, passing the command line arguments
-    delineate(args.input_csv, args.output_prefix)
+    G, subbasins_gdf, myrivers_gdf = delineate(args.input_csv, args.output_prefix)
 
 
 def main():

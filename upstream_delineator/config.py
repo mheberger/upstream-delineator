@@ -9,6 +9,9 @@ _GLOBAL_CONFIG = {
   # Set to True if you want the script to write status messages to the console
   "VERBOSE": True,
 
+  # Whether to write output to a file
+  "WRITE_OUTPUT": False,
+
   # Folder where the script will write the output geodata
   "OUTPUT_DIR": "output",
 

@@ -160,12 +160,14 @@ def delineate(input_csv: str, output_prefix: str, config_vals: dict = None):
 
     # Finally, write the results to disk
     gages_list = gages_gdf['id'].tolist()
-    write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix)
+    if config.get("WRITE_OUTPUT"):
+        write_outputs(G, myrivers_gdf, subbasins_gdf, gages_list, output_prefix)
 
     if config.get("NETWORK_DIAGRAMS"):
         draw_graph(G, f'plots/{output_prefix}_network_final')
 
     print("Ran successfully!")
+    return G, subbasins_gdf, myrivers_gdf
 
 
 def get_watershed(gages_gdf: gpd.GeoDataFrame, megabasin: int, catchments_gdf, rivers_gdf):
