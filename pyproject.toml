@@ -11,6 +11,7 @@ dependencies = [
     "numpy==1.*",
     "pandas>=1.3",
     "pillow==10.*",
+    "pyogrio>0",
     "pyproj==3.*",
     "pysheds>=0.3",
     "scipy==1.*",
