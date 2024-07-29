@@ -109,9 +109,6 @@ def delineate(input_csv: str, output_prefix: str, config_vals: dict = None):
     # Read the outlet points CSV file and put the data into a Pandas DataFrame
     # (I call the outlet points gages, because I usually in delineated watersheds at streamflow gages)
     gages_gdf = make_gages_gdf(input_csv)
-    # TODO: add some amount of buffer?
-    all_points = unary_union(gages_gdf['geometry']).buffer(1)
-    bounds = all_points.bounds
 
     # Create a filtered version with only the *outlets*
     outlets_gdf = gages_gdf[gages_gdf['is_outlet'] == True]
@@ -119,7 +116,7 @@ def delineate(input_csv: str, output_prefix: str, config_vals: dict = None):
     # Get the megabasin(s) in which the points are located
     # This returns a dictionary. Key: megabasin, Value: list of outlets that are in the megabasin
     # This way, we can process the gages one megabasin at a time, so we only have to read geodata files once.
-    gage_basins_dict = get_megabasins(outlets_gdf)
+    gage_basins_dict, megabasins_gdf = get_megabasins(outlets_gdf)
 
     G = None
     subbasins_gdf = None
@@ -129,6 +126,8 @@ def delineate(input_csv: str, output_prefix: str, config_vals: dict = None):
     for megabasin in gage_basins_dict.keys():
         # Iterate over the outlets:
         outlets = gage_basins_dict[megabasin]
+
+        bounds = megabasins_gdf.loc[megabasin].geometry.bounds
 
         if config.get("VERBOSE"): print(f'Reading geodata for unit catchments with bounds {bounds}')
         catchments_gdf = load_gdf("catchments", True, bounds)

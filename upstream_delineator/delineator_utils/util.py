@@ -294,7 +294,7 @@ def get_megabasins(points_gdf: GeoDataFrame) -> dict:
               "Fix before continuing.")
         raise Exception
 
-    return basins_dict
+    return basins_dict, megabasins_gdf.set_index('BASIN')
 
 
 def make_folders():
