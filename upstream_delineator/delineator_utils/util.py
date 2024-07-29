@@ -281,18 +281,16 @@ def get_megabasins(points_gdf: GeoDataFrame) -> dict:
     # PFAF_2 basin each point falls inside of, using a spatial join
     gages_basins_join = gpd.overlay(points_gdf, megabasins_gdf, how="intersection")
 
+    excluded_points = points_gdf.loc[~points_gdf['id'].isin(gages_basins_join['id'])]
+    if not excluded_points.empty:
+        raise ValueError(f'These points do not fall inside any of the continental-scale megabasins.\n{excluded_points}')
+    
     # Needed to set this option in order to avoid a warning message in Geopandas.
     # https://stackoverflow.com/questions/20625582/how-to-deal-with-settingwithcopywarning-in-pandas
     pd.options.mode.chained_assignment = None
 
     # Get a list of the DISTINCT Level 2 basins, and a count of how many gages in each.
     basins_dict = gages_basins_join.groupby('BASIN')['id'].apply(list).to_dict()
-
-    # If the points are not in ANY megabasin
-    if len(basins_dict) == 0:
-        print("ERROR: Your watershed outlets do not fall inside any of the continental-scale megabasins. "
-              "Fix before continuing.")
-        raise Exception
 
     return basins_dict, megabasins_gdf.set_index('BASIN')
 
