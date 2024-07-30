@@ -44,14 +44,14 @@ To get started, download the latest release from this GitHub repository (or fork
 
 These scripts were developed and tested with Python version 3.11 and 3.12.
 
-I recommend creating a Python virtual environment in which to run the script.
-Here is a good [introduction to virtual environments]
-(https://python.land/virtual-environments/virtualenv) -- 
-why they are useful, and how to use them. You can create and activate the 
-virtual environment, then install all the required packages with the following commands. 
+We recommend creating a Python virtual environment in which to run the script.
+Here is a good
+[introduction to virtual environments](https://python.land/virtual-environments/virtualenv)
+-- why they are useful, and how to use them. You can create and activate the virtual
+environment, then install all the required packages with the following commands. 
 
 Open the Terminal (Linux and Mac) or Command Prompt (Windows), `cd` 
-to the directory containing `delineator.py` and related files, then enter these commands.
+into the cloned repo.
 
 To create the virtual environment:
 ```
@@ -80,16 +80,6 @@ This script uses the latest versions of Python packages circa April 2024.
 Make sure that you have the correct version of numpy. The `pysheds v0.4` library
 is *not* compatible with numpy v2.0. 
 
-## Install GraphViz
-
-If you want the scripts to make diagrams of your river network, you will need
-to install the program GraphViz (not just the Python library, but the standalone
-software as well). Go to: [https://graphviz.org/download/](https://graphviz.org/download/).
-During the installation, make sure you add GraphViz to the system path. 
-
-The script will make these diagrams if you set the variable `NETWORK_DIAGRAMS = True` 
-in `config.py`. 
-
 
 # Overview of using `subbasins.py`
 
@@ -98,10 +88,10 @@ To simply try the program with the sample data provided, you can skip to step 5.
 When you are ready to try with your own locations, you will need to download additional 
 data as described in steps 1 and 2.
 
-1. [Download basin-scale MERIT-Hydro raster data (mghydro.com)](#step_download)
+1. [Export env vars pointing to raster and vector data](#step_env)
 1. [Create a CSV file with your desired watershed outlet points](#step_csv)
-1. [Edit settings in `config.py`](#step_config)
-1. [Run `subbasins.py` to delineate watersheds](#step_run)
+1. [Override config defaults](#step_config)
+1. [Delineate watersheds](#step_run)
 1. [Review output](#step_review)
 1. [Run again to fix mistakes](#step_repeat)
 
@@ -114,20 +104,24 @@ MERIT Level 2 megabasins
 
 # Detailed Instructions
 
-## <a name="step_download">Download MERIT-Hydro raster data</a>
+## <a name="step_env">Export env vars pointing to raster and vector data</a>
 
-You will need two sets of MERIT-Hydro gridded (or raster) data: **flow accumulation**
-and **flow direction**. 
-The authors of the MERIT-Hydro created 5-degree tiles, but this script needs seamless 
-layers that cover entire river basins. I have already done the work of merging these
-raster data files. You can freely download them here:
-[https://mghydro.com/watersheds/rasters](https://mghydro.com/watersheds/rasters)
+You will need two set environment variables pointing to local or remote files containing global
+[MERIT-Hydro](https://www.reachhydro.org/home/params/merit-basins) raster and vector data.
 
-You will need to update `config.py` to tell the script where to find these data files. 
-Modify these variables:
+- `CATCHMENT_PATH` (for MERIT catchments)
+- `RIVER_PATH` (for MERIT flowlines)
+- `FLOW_DIR_PATH` (for MERIT flow direction)
+- `ACCUM_PATH` (for MERIT flow accumulation)
+- `MEGABASINS_PATH` (for MERIT Level 2 megabasins)
 
-- `MERIT_FDIR_DIR` (for flow direction)
-- `MERIT_ACCUM_DIR` (for flow accumulation)
+``` bash
+export CATCHMENT_PATH="https://example.com/global_catchments.fgb"
+export RIVER_PATH="https://example.com/global_flowlines.fgb"
+export FLOW_DIR_PATH="https://example.com/merit_flowdir.tif"
+export ACCUM_PATH="https://example.com//merit_accum.tif"
+export MEGABASINS_PATH="https://example.com/file.shp"
+```
 
 
 ## <a name="step_csv">Create a CSV file with your desired watershed outlet points</a>
@@ -157,7 +151,7 @@ For example, use 23.0 instead of 23.
   upstream points that will be sub-basin outlets, enter `false` or `False`.
 
 All latitude and longitude coordinates should be in decimal degrees 
-(EPSG: 4326, [https://spatialreference.org/ref/epsg/4326//](https://spatialreference.org/ref/epsg/4326/)).
+(EPSG: 4326, [https://spatialreference.org/ref/epsg/4326/](https://spatialreference.org/ref/epsg/4326/)).
 
 - The order of the columns does not matter, but the names must be exactly as shown above.
 
@@ -175,49 +169,44 @@ All latitude and longitude coordinates should be in decimal degrees
 In this example, there are two *main* outlets. The first, "foz-tua," has two subbasin
 outlets. The second, "baixo-sabor," has one subbasin outlet. 
 
-## <a name="step_config">Update `config.py`</a>
+## <a name="step_config">Override config defaults</a>
 
-Read through the options and set the variables as you wish. 
-Make sure to set the correct folder paths to where you are storing 
-the input data on your computer.
+Read through the options in `config.py`, then override any variables as you wish. 
 
-## <a name="step_run">Run `subbasins.py` to delineate watersheds</a>
+``` python
+graph, subbasins_gdf, rivers_gdf = delineate(
+    csv_filename, output_prefix, {"WRITE_OUTPUT": True, "NETWORK_DIAGRAMS": True}
+)
+```
 
-Once you have downloaded the datasets listed above, and updated `config.py`, 
-you are ready to delineate watersheds. The script takes exactly two arguments:
+## <a name="step_run">Delineate watersheds</a>
 
-`input_csv` - Input CSV filename, for example `outlets.csv`
+Delineation can be run from the command line, or from Python. Either way, you will need to specify a few arguments:
 
-`output_prefix` - Output prefix, a string. The output files will start with this string. For example, 
+- `input_csv` (required) - Input CSV filename, for example `outlets.csv`
+- `output_prefix` (required) - Output prefix, a string. The output files will start with this string. For 
+example, 
 if you provide 'shasta', the script will produce `shasta_subbasins.shp`, `shasta_outlets.shp`, etc.
+- `config_overrides` (optional, Python-only) - A dictionary of overrides. Eg to turn `VERBOSE` logging on or off.
 
-Run the script from the command line like this:
+You can run the script from the command line like this:
 
-```
-$ python subbasins.py outlets.csv shasta
-```
-
-This assumes you have put `outlets.csv` in the same folder with the scripts, 
-which is not always convenient. You can provide a full file path as follows 
-(examples for Windows and Linux):
-```
-> python subbasins.py C:\Users\matt\Desktop\outlets.csv test
-$ python subbasins.py /home/files/outlets.csv test
+``` bash
+python upstream_delineator/scripts/subbasins.py /path/to/file/outlets.csv shasta
 ```
 
-Alternatively, you can call the delineation routine from Python, in a script
-or via the console:
+Alternatively, you can call the delineation routine from Python:
 
-```
->> from subbasins import delineate
->> delineate('outlets.csv', 'testrun')
+``` python
+>> from upstream_delineator.delineator_utils.delineate import delineate
+>> delineate('/path/to/file/outlets.csv', 'shasta')
 ```
 
 ## <a name="step_review">Review results</a>
 
 The script can output several different geodata formats, 
 as long as the format is supported by `GeoPandas`. Shapefiles are popular, 
-but I recommend **GeoPackage**, as it is a more modern and open format. 
+but we recommend **GeoPackage**, as it is a more modern and open format. 
 **Feather** is another lightweight, portable data format.
 To get a full list of available formats, follow the directions 
 [here](https://geopandas.org/en/stable/docs/user_guide/io.html#writing-spatial-data)
@@ -230,7 +219,7 @@ Automated watershed delineation is often incorrect.
 The good news is that errors can often be fixed by slightly moving the 
 location of your watershed outlets.
 
-Repeat steps 3 to 6 to create a new outlets CSV file, or modifying your existing file, 
+Repeat the above steps to create a new outlets CSV file, or modify your existing file, 
 using revised coordinates. The script will automatically overwrite existing files
 without any warning, so first make sure to back up anything you want to save.
 
@@ -239,7 +228,7 @@ without any warning, so first make sure to back up anything you want to save.
 
 **Optional.** One of the slow steps in the script is reading shapefiles and creating a GeoDataFrame. 
 Once you have done this once, you can save time in the future by storing the GeoDataFrame as a .pkl file.
-Enter a file path for the constant `PICKLE_DIR`, and the script will automatically save files here. 
+Override the file path for the constant `PICKLE_DIR`, and the script will automatically save files here. 
 The script will not search for pickle files if you leave this as a blank string, `''` 
 Note that these files are not any smaller than the original shapefile, so they don't save disk space;
 they are just faster to load. 
@@ -247,9 +236,9 @@ they are just faster to load.
 
 # Simplification
 
-The Python routine I am using to simplify the subbasin polygons (`topojson`) is not perfect.
+The Python routine used to simplify the subbasin polygons (`topojson`) is not perfect.
 Sometimes, the output will contain weird overlaps and slivers. If appearances matter, 
-I recommend setting `SIMPLIFY = False` and using external software for simplification.
+we recommend setting `SIMPLIFY` to `False` and using external software for simplification.
 
 *Mapshaper* works well. You can use the [web version](https://mapshaper.org/), or you can install and run it from the command line. 
 Note that mapshaper will only accept shapefiles or geojson as input, and not geopackages or feather files. 
@@ -260,7 +249,7 @@ As an alternative, GIS software like QGIS (free) or ArcGIS (commercial) do the j
 # Outputting larger subbasins
 
 The unit catchments in MERIT-Basins have an average size of around 40 km². If you wish to create
-larger subbasins, in `config.py`, set the variable `CONSOLIDATE = True`.
+larger subbasins, se `CONSOLIDATE` to `True`.
 Then, set a value for `MAX_AREA` in km². This sets the upper limit on the size of subbasins.
 The script will merge unit catchments such that the overall structure
 and connectivity of the drainage network is maintained. This example shows the subbasins
@@ -295,8 +284,7 @@ basin in North America. Statistics are for the subbasin areas in km².
 
 # Limitations
 
-The code mostly assumes that the user's inputs make sense, and I have not 
-created extensive error handling for bad inputs, or code to handle all the possible edge cases. 
+More error handling of stress cases is forthcoming.
 For example, the MERIT-Basins dataset
 has some gaps and slivers of missing data; if your outlet points falls 
 into one of these locations, it may cause problems. In this case, simply nudge the 
@@ -311,18 +299,12 @@ make sure all of your points have a little space between them!
 
 # Contributing
 
-For comments or questions, please contact the author: Matthew Heberger, matt@mghydro.com.
-
 To report any bugs, you can create an Issue on this GitHub page.
 
 This code is open source, so if you are motivated to make any 
-modifications, additions, or bug fixes, you can fork the repository 
-and then do a pull request on GitHub. 
+modifications, additions, or bug fixes, you can make a pull request on GitHub. 
 
 
-# Acknowledgments
+# Acknowledgments 
 
-This code was developed with support from [Upstream Tech](https://www.upstream.tech/).
-
-
-
+Thanks to Matthew Heberger who wrote the [original code](https://github.com/mheberger/delineator) built upon here.
