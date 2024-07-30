@@ -217,8 +217,10 @@ def prune_leaves(G: nx.DiGraph,
     # Do not merge them with a downstream node if they have a neighbor
     for leaf in leaves:
         if G.has_node(leaf):
-            successor = list(G.successors(leaf))[0]
-            neighbors = list(G.predecessors(successor))
+            successors = list(G.successors(leaf))
+            if len (successors) == 0:
+                continue
+            neighbors = list(G.predecessors(successors[0]))
             if len(neighbors) == 2:
                 neighbors.remove(leaf)
                 neighbor = neighbors[0]
