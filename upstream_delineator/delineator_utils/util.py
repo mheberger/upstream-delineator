@@ -6,6 +6,7 @@ from functools import partial
 import networkx
 import pyproj
 import shapely
+from shapely.ops import unary_union
 from geopandas import GeoDataFrame
 from geopandas.io.file import _read_file_pyogrio
 from shapely.geometry import MultiPolygon, Polygon, LineString
@@ -242,39 +243,23 @@ def calc_length(line: LineString) -> float:
     return projected_line.length / 1e3
 
 
-def load_megabasins() -> gpd.GeoDataFrame:
+def load_megabasins(bounds: tuple[float]) -> gpd.GeoDataFrame:
     """
     Reads the "megabasin" data from disk and returns a GeoDataFrame.
     The program uses this data to determine what dataset is needed for analyses.
     I refer to the MERIT-Basins Pfafstetter Level 2 basins as megabasins.
 
-    This function gets the data from a shapefile or a pickle file, if it exists.
+    This function gets the data from a flatgeobuf file or a pickle file, if it exists.
     If the .pkl does not exist, create it for faster processing in the future,
-    since reading shapefiles is slow.
+    since reading flatgeobuf files is slow.
     """
+    megabasins_gdf = load_gdf("megabasins", True, bounds)
 
-    # Check whether the pickle file exists
-    pickle_fname = f'{config.get("PICKLE_DIR")}/megabasins.pkl'
-    if os.path.isfile(pickle_fname):
-        if config.get("VERBOSE"): print("Loading Megabasins from Pickle File")
-        gdf = pickle.load(open(pickle_fname, "rb"))
-        return gdf
-    else:
-        # This file has the merged "megabasins_gdf" in it
-        if config.get("VERBOSE"): print("Reading Megabasins shapefile")
-        merit_basins_shp = MEGABASINS_PATH
-        megabasins_gdf =_read_file_pyogrio(merit_basins_shp)
+    # The CRS string in the flatgeobuf file is EPSG 4326 but does not match verbatim, so set it here
+    megabasins_gdf.to_crs(PROJ_WGS84, inplace=True)
 
-        # The CRS string in the shapefile is EPSG 4326 but does not match verbatim, so set it here
-        megabasins_gdf.to_crs(PROJ_WGS84, inplace=True)
-        if megabasins_gdf.loc[0].BASIN != 11:
-            raise Exception("An error occurred loading the Level 2 basins shapefile")
-
-        # Try saving to a pickle file for future speedups
-        if len(config.get("PICKLE_DIR")) > 0:
-            # Recall that the latest versions of GeoPandas create spatial indices automatically
-            if config.get("VERBOSE"): print("Saving megabasins GeoDataFrame to pickle file.")
-            pickle.dump(megabasins_gdf, open(pickle_fname, "wb"))
+    # Check that data is well-formed 
+    ((11 <= megabasins_gdf.BASIN) & (megabasins_gdf.BASIN <= 91)).all()
 
     return megabasins_gdf
 
@@ -288,8 +273,8 @@ def get_megabasins(points_gdf: GeoDataFrame) -> dict:
         A dictionary, keys are the unique megabasins: integers from 11 to 91.
         Values are lists of outlet points (type is variable, whatever the user entered in the input CSV file)
     """
-
-    megabasins_gdf = load_megabasins()
+    all_points = unary_union(points_gdf['geometry'])
+    megabasins_gdf = load_megabasins(all_points.bounds)
     if config.get("VERBOSE"): print("Finding out which Pfafstetter Level 2 'megabasin' your outlets are in")
 
     # Overlay the gage points on the Level 2 Basins polygons to find out which
@@ -354,18 +339,18 @@ def get_pickle_filename(geotype: str, bounds: tuple, high_resolution: bool) -> s
     return fname
 
 
-def load_gdf(geotype: str, high_resolution: bool, bounds: tuple) -> gpd.GeoDataFrame:
+def load_gdf(geotype: str, high_resolution: bool, bounds: tuple[float]) -> gpd.GeoDataFrame:
     """
     Returns the unit catchments vector polygon dataset as a GeoDataFrame
-    Gets the data from the MERIT-Basins shapefile the first time,
+    Gets the data from the MERIT-Basins flatgeobuf file the first time,
     and after that from a saved .pkl file on disk.
     Uses some global parameters from config.py
 
     :param geotype: either "catchments" or "rivers" depending on which one we want to open.
-    :param basin: the Pfafstetter level 2 megabasin, an integer from 11 to 91
     :param high_resolution: True to load the standard (high-resolution) file,
       False to load the low-resolution version (for faster processing, slightly less accurate results)
-
+    :param bounds: tuple of floats representing a bounding box.
+      
     :return: a GeoPandas GeoDataFrame
 
     """
@@ -378,11 +363,12 @@ def load_gdf(geotype: str, high_resolution: bool, bounds: tuple) -> gpd.GeoDataF
             gdf = pickle.load(open(pickle_fname, "rb"))
             return gdf
 
-    # Open the shapefile for the bounds
     if geotype == "catchments":
         gis_path = CATCHMENT_PATH
     elif geotype == "rivers":
         gis_path = RIVER_PATH
+    elif geotype == "megabasins":
+        gis_path = MEGABASINS_PATH
 
     if config.get("VERBOSE"): print(f"Reading geodata in {gis_path}")
     # use _read_file_pygrio instead of gpd.read_file b/c it's performing an unneeded check that causes a 403 error 
@@ -397,7 +383,7 @@ def load_gdf(geotype: str, high_resolution: bool, bounds: tuple) -> gpd.GeoDataF
 
 
 def save_pickle(geotype: str, gdf: gpd.GeoDataFrame, high_resolution: bool, bounds: tuple):
-    # If we loaded the catchments from a shapefile, save the gdf to a pickle file for future speedup
+    # If we loaded the catchments from a flatgeobuf, save the gdf to a pickle file for future speedup
     if config.get("PICKLE_DIR") != '':
 
         # Check whether the GDF has a spatial index.
