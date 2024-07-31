@@ -21,6 +21,7 @@ def make_river_network(df: DataFrame, terminal_node=None) -> nx.DiGraph:
         G.add_node(node_id)
         G.nodes[node_id]['area'] = df.at[node_id, 'unitarea']
         # Add edge from comid to nextdown
+        # A nextdown value of 0 means this node doesn't connect to anything downstream
         if str(nextdown) != '0' and node_id != terminal_node:
             G.add_edge(node_id, nextdown)
 
