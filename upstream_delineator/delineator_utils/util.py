@@ -127,50 +127,54 @@ def validate(gages_df: pd.DataFrame) -> bool:
     (3) input values are in the appropriate range (i.e. lat between -90 and 90).
 
     returns: True, if inputs are valid
-             throws an Exception if inputs are not valid.
+             throws a ValueError if inputs are not valid.
 
     """
     cols = gages_df.columns
     required_cols = ['id', 'lat', 'lng', 'is_outlet']
     for col in required_cols:
         if col not in cols:
-            raise Exception(f"Missing column in CSV file: {col}")
+            raise ValueError(f"Missing column in CSV file: {col}")
 
     # Check that the ids are all unique
     if len(gages_df['id'].unique()) != len(gages_df):
-        raise Exception("Each id in your CSV file must be unique.")
+        raise ValueError("Each id in your CSV file must be unique.")
 
     # Check that lat, lng are numeric
     fields = ['lat', 'lng']
     for field in fields:
         if gages_df[field].dtype != 'float64':
-            raise Exception(f"In outlets CSV, the column {field} is not numeric.")
+            raise ValueError(f"In outlets CSV, the column {field} is not numeric.")
 
     # Check that all the lats are in the right range
     lats = gages_df["lat"].tolist()
     lngs = gages_df["lng"].tolist()
 
     if not all(lat > -60 for lat in lats):
-        raise Exception("All latitudes must be greater than -60°")
+        raise ValueError("All latitudes must be greater than -60°")
 
     if not all(lat < 85 for lat in lats):
-        raise Exception("All latitudes must be less than 85°")
+        raise ValueError("All latitudes must be less than 85°")
 
     if not all(lng > -180 for lng in lngs):
-        raise Exception("All longitudes must be greater than -180°")
+        raise ValueError("All longitudes must be greater than -180°")
 
     if not all(lng < 180 for lng in lngs):
-        raise Exception("All longitudes must be less than 180°")
+        raise ValueError("All longitudes must be less than 180°")
 
     # Check that every row has an id
     ids = gages_df["id"].tolist()
 
     if not all(len(str(wid)) > 0 for wid in ids):
-        raise Exception("Every watershed outlet must have an id in the CSV file")
+        raise ValueError("Every watershed outlet must have an id in the CSV file")
+    
+    # Check that all ids are valid 
+    if (gages_df["id"].astype(str) == "0").any():
+        raise ValueError("id of 0 not allowed in input csv")
 
     # Check that the ids are unique. We cannot have duplicate ids, because they are used as the index in DataFrames
     if not has_unique_elements(ids):
-        raise Exception("Outlet ids must be unique. No duplicates are allowed!")
+        raise ValueError("Outlet ids must be unique. No duplicates are allowed!")
 
     # Check that `is_outlet` is boolean
     is_outlet_type = gages_df['is_outlet'][0]
@@ -178,9 +182,9 @@ def validate(gages_df: pd.DataFrame) -> bool:
         if is_outlet_type == 'O':
             vals = gages_df['id'].unique()
             if True not in vals:
-                raise Exception("The field `is_outlet` must be boolean (true/false)")
+                raise ValueError("The field `is_outlet` must be boolean (true/false)")
     else:
-        raise Exception("The field `is_outlet` must be boolean (true/false)")
+        raise ValueError("The field `is_outlet` must be boolean (true/false)")
 
     return True
 
